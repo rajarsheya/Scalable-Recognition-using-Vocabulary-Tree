@@ -7,11 +7,11 @@ using namespace cv;
 				
 int main(int argc, char* argv[])
 {	
-		Mat image = imread("pippy.jpg");
+	Mat image = imread("pippy.jpg");
 		
-		namedWindow("Original Image");
-		imshow("Original Image", image);
-		waitKey(0);
+	namedWindow("Original Image");
+	imshow("Original Image", image);
+	waitKey(0);
 
-		return 0;
+	return 0;
 }
