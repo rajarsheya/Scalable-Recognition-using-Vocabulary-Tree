@@ -69,9 +69,9 @@ void formKTree(vector<Mat> images)
 		Mat descriptor;
 		//b->detectAndCompute(images[i], noArray(), keypoint, descriptor);
 		//scriptors.push_back(descriptor);
-		Ptr<FeatureDetector> orbDetector = ORB::create();
+		Ptr<FeatureDetector> orbDetector = SIFT::create();
 		orbDetector->detect(images[i], keypoint);
-		Ptr<DescriptorExtractor> orbExtractor = ORB::create();
+		Ptr<DescriptorExtractor> orbExtractor = SIFT::create();
 		orbExtractor->compute(images[i], keypoint, descriptor);
 		descriptors.push_back(descriptor);
 	}
