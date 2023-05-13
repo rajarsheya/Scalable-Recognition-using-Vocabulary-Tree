@@ -64,10 +64,15 @@ void formKTree(vector<Mat> images)
 		string name = "image" + to_string(i + 1);
 		displayResult(name, images[i]);
 		*/
-		Ptr<Feature2D>  orb = ORB::create();
+		//r<Feature2D>  orb = ORB::create();
 		vector<KeyPoint> keypoint;
 		Mat descriptor;
-		orb->detectAndCompute(images[i], noArray(), keypoint, descriptor);
+		//b->detectAndCompute(images[i], noArray(), keypoint, descriptor);
+		//scriptors.push_back(descriptor);
+		Ptr<FeatureDetector> orbDetector = ORB::create();
+		orbDetector->detect(images[i], keypoint);
+		Ptr<DescriptorExtractor> orbExtractor = ORB::create();
+		orbExtractor->compute(images[i], keypoint, descriptor);
 		descriptors.push_back(descriptor);
 	}
 
