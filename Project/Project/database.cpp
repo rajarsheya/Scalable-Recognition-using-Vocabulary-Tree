@@ -5,13 +5,17 @@
 #include <cmath>
 #include <map>
 #include <cstdlib>
+#include <numeric>
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/features2d.hpp>
-#include <opencv2/xfeatures2d.hpp>
+// #include <opencv2/features2d.hpp>
+// #include <opencv2/xfeatures2d.hpp>
+
+#include "feature.cpp"
+#include "homography.cpp"
 
 using namespace cv;
 using namespace std;
@@ -62,17 +66,14 @@ public:
         feature_start_idx{}, vocabulary_tree{nullptr}, word_idx_count{0} {
     }
 
-    // void insert(Mat image) {  // Image class to be defined
-    //     images.push_back(image);
-    // }
-
 
 	// uses Feature.cpp for FeatureDetector
-	void Database::loadImgs(string data_path, string method = "SIFT") {
+	// NEED TO INTEGRATE WITH OTHER CPP FILES
+	void loadImgs(string data_path, string method = "SIFT") {
 		this->data_path = data_path;
 
 		// Assuming a FeatureDetector class exists that has a detect method
-		FeatureDetector fd;
+		FeatureDetecter fd;
 
 		for(auto &p : fs::recursive_directory_iterator(data_path)){
         	if(fs::is_regular_file(p)) {
@@ -83,6 +84,7 @@ public:
 				// get all the keypoints and descriptors for each image
 				vector<KeyPoint> kpts;
 				Mat des;
+				// ---------------------------- NEXT LINE NEEDS TO BE INTEGRATED WITH FEATURE.CPP --------------------------------
 				tie(kpts, des) = fd.detect(img, method); // Assuming that the detect method returns keypoints and descriptors
 
 				// Append descriptors and image paths to all_des
@@ -173,11 +175,13 @@ public:
 		return root;
 	}
 
+
 	void build_histogram(VocabNode* node) {
+		// Build the histgram for the leaf nodes
 		if (node->children.empty()) {
 			for (auto const& [img, count] : node->occurrences_in_img) {
 				if (img_to_histogram.find(img) == img_to_histogram.end()) {
-					img_to_histogram[img] = vector<int>(word_idx_count, 0);
+					img_to_histogram[img] = vector<float>(word_idx_count, 0);
 				}
 				img_to_histogram[img][node->index] += count;
 			}
@@ -188,60 +192,161 @@ public:
 		}
 	}
 
-// Bag of words
-	void Database::build_BoW() {
-		for (size_t j = 0; j < all_image.size(); ++j) {
-			std::string img = all_image[j];
-			std::vector<double> t(word_idx_count, 0.0);
+
+	// Bag of words
+	void build_BoW() {
+		for (size_t j = 0; j < all_images.size(); ++j) {
+			string img = all_images[j];
+			vector<float> t(word_idx_count, 0.0);
 			t = img_to_histogram[img];
 			for (int w = 0; w < word_idx_count; ++w) {
-				double n_wj = img_to_histogram[img][w];
-				double n_j = std::accumulate(img_to_histogram[img].begin(), img_to_histogram[img].end(), 0.0);
-				double n_w = word_count[w];
-				double N = num_imgs;
-				t[w] = (n_wj/n_j) * std::log(N/n_w);
+				float n_wj = img_to_histogram[img][w];
+				float n_j = accumulate(img_to_histogram[img].begin(), img_to_histogram[img].end(), 0.0);
+				float n_w = word_count[w];
+				float N = num_imgs;
+				t[w] = (n_wj/n_j) * log(N/n_w);
 			}
 			BoW[img] = t;
 		}
 	}
 
-	// pings homography.cpp
-	// vector<int> spatial_verification() {
-	// 	// self, query, img_path_lst, method
-	// 	return ['best_img', 'best_img_path', 'best_H'];
-	// }
 
-	VocabNode get_leaf_nodes() {
-		// (self, root, des)
-		return VocabNode();
+	// pings homography.cpp
+	// NEED TO INTEGRATE WITH OTHER CPP FILES
+	tuple<Mat, string, Mat> spatial_verification(const Mat& query, const vector<string>& img_path_list, const string& method) {
+		FeatureDetecter fd;
+		int best_inliers = numeric_limits<int>::lowest();
+		string best_img_path;
+		Mat best_img, best_H;
+
+		for (const string& img_path : img_path_list) {
+			Mat img = imread(img_path);
+			// ---------------------------- NEXT LINEs NEEDS TO BE INTEGRATED WITH FEATURE.CPP & HOMOGRAPHY.CPP --------------------------------
+			auto correspondences = fd.detect_and_match(img, query, method); // Assuming detect_and_match returns a suitable data structure
+			auto [inliers, optimal_H] = RANSAC_find_optimal_Homography(correspondences, 2000); // Assuming RANSAC_find_optimal_Homography returns a pair
+
+			cout << "Running RANSAC... Image: " << img_path << " Inliers: " << inliers << endl;
+
+			if (best_inliers < inliers) {
+				best_inliers = inliers;
+				best_img_path = img_path;
+				best_img = img;
+				best_H = optimal_H;
+			}
+		}
+		return make_tuple(best_img, best_img_path, best_H);
 	}
 
+
+	VocabNode* get_leaf_nodes(VocabNode* node, vector<float>& descriptor) {
+		// If this node has no children, it is a leaf node.
+		if (node->children.empty()) {
+			return node;
+		}
+
+		// Find the child node whose center is closest to the descriptor.
+		VocabNode* closest_child = node->children[0];
+		float closest_distance = norm(descriptor, node->centers.row(0), NORM_L2);
+
+		for (int i = 1; i < node->children.size(); ++i) {
+			float distance = norm(descriptor, node->centers.row(i), NORM_L2);
+			if (distance < closest_distance) {
+				closest_child = node->children[i];
+				closest_distance = distance;
+			}
+		}
+
+		// Recurse on the closest child node.
+		return get_leaf_nodes(closest_child, descriptor);
+	}
+
+
 	// pings spatial_verification, which pings homography.cpp
-    vector<int> query(Mat query_image, int k=10) {  // Image class to be defined
-        vector<double> scores;
-        for (const auto& db_image : images) {
-            double score = db_image.compare(query_image);  // compare function to be defined in Image class
-            scores.push_back(score);
-        }
+    tuple<Mat, string, Mat, vector<string>> query(Mat input_img, int top_K, string method) {
+		FeatureDetecter fd;
+		vector<KeyPoint> kpts;
+		Mat des;
 
-    //     // Sorting and extracting top-k scores in C++.
-    //     // This will require additional code and possibly a custom comparator
-    // }
+		// compute the features
+		tie(kpts, des) = fd.detect(input_img, method); // TODO: replace with actual C++ version when available
 
-	void save(const std::string &db_name) {
-		std::ofstream file(db_name, std::ios::binary);
+		vector<float> q(word_idx_count, 0.0);
+		vector<VocabNode*> node_lst;
 
-		// Assuming all member variables are public
-		// Writing to the file
+		// Assuming des is a Mat with a row for each descriptor
+		for (int i = 0; i < des.rows; i++) {
+			Mat row = des.row(i);
+    		vector<float> descriptor(row.begin<float>(), row.end<float>());
+			VocabNode* node = get_leaf_nodes(vocabulary_tree, descriptor);
+			node_lst.push_back(node);
+			q[node->index] += 1;
+		}
+
+		for (int w = 0; w < word_idx_count; ++w) {
+			float n_w = word_count[w];
+			float N = num_imgs;
+			float n_wq = q[w];
+			float n_q = accumulate(begin(q), end(q), 0.0f);
+			q[w] = (n_wq / n_q) * log(N/n_w);
+		}
+
+		// get a list of img from database that have the same visual words
+		vector<string> target_img_lst;
+		for (auto n : node_lst) {
+			for (auto const& [img, count] : n->occurrences_in_img) {
+				if (find(target_img_lst.begin(), target_img_lst.end(), img) == target_img_lst.end()) {
+					target_img_lst.push_back(img);
+				}
+			}
+		}
+
+		// compute similarity between query BoW and the all targets
+		vector<double> score_lst(target_img_lst.size(), 0.0);
+		for (size_t j = 0; j < target_img_lst.size(); ++j) {
+			string img = target_img_lst[j];
+			vector<float> t = BoW[img];
+			score_lst[j] = 2 + accumulate(begin(q), end(q), 0.0f) - accumulate(begin(t), end(t), 0.0f);
+		}
+
+		// sort the similarity and take the top_K most similar image
+		// get top_K best match images
+		vector<int> indices(score_lst.size());
+		iota(indices.begin(), indices.end(), 0); // Filling the indices vector with values from 0 to size-1
+
+		sort(indices.begin(), indices.end(), 
+			[&score_lst](int i1, int i2) { return score_lst[i1] < score_lst[i2]; }); // Sort indices based on corresponding scores
+
+		vector<int> best_K_match_imgs_idx(indices.end() - top_K, indices.end());
+		reverse(best_K_match_imgs_idx.begin(), best_K_match_imgs_idx.end());
+
+		vector<string> best_K_match_imgs(top_K);
+		transform(best_K_match_imgs_idx.begin(), best_K_match_imgs_idx.end(), best_K_match_imgs.begin(),
+			[&target_img_lst](int i) { return target_img_lst[i]; });
+
+
+		Mat best_img;
+		string best_img_path;
+		Mat best_H;
+
+		tie(best_img, best_img_path, best_H) = spatial_verification(input_img, best_K_match_imgs, method);
+
+		return make_tuple(best_img, best_img_path, best_H, best_K_match_imgs);
+	}
+
+
+	void save(const string &db_name) {
+    	ofstream file(db_name, ios::binary);
+
+		// C++ does not have a direct equivalent to Python's pickle module
 		// This might not work as expected with complex types
 		file.write((char*)&data_path, sizeof(data_path));
 		file.write((char*)&num_imgs, sizeof(num_imgs));
 		file.write((char*)&word_to_img, sizeof(word_to_img));
 		file.write((char*)&BoW, sizeof(BoW));
 		file.write((char*)&word_count, sizeof(word_count));
-		file.write((char*)&img_to_histgram, sizeof(img_to_histgram));
+		file.write((char*)&img_to_histogram, sizeof(img_to_histogram));
 		file.write((char*)&all_des, sizeof(all_des));
-		file.write((char*)&all_image, sizeof(all_image));
+		file.write((char*)&all_images, sizeof(all_images));
 		file.write((char*)&num_feature_per_image, sizeof(num_feature_per_image));
 		file.write((char*)&feature_start_idx, sizeof(feature_start_idx));
 		file.write((char*)&word_idx_count, sizeof(word_idx_count));
@@ -250,20 +355,20 @@ public:
 		file.close();
 	}
 
-	void load(const std::string &db_name) {
-		std::ifstream file(db_name, std::ios::binary);
 
-		// Assuming all member variables are public
-		// Reading from the file
+	void load(const string &db_name) {
+		ifstream file(db_name, ios::binary);
+
+		// C++ does not have a direct equivalent to Python's pickle module
 		// This might not work as expected with complex types
 		file.read((char*)&data_path, sizeof(data_path));
 		file.read((char*)&num_imgs, sizeof(num_imgs));
 		file.read((char*)&word_to_img, sizeof(word_to_img));
 		file.read((char*)&BoW, sizeof(BoW));
 		file.read((char*)&word_count, sizeof(word_count));
-		file.read((char*)&img_to_histgram, sizeof(img_to_histgram));
+		file.read((char*)&img_to_histogram, sizeof(img_to_histogram));
 		file.read((char*)&all_des, sizeof(all_des));
-		file.read((char*)&all_image, sizeof(all_image));
+		file.read((char*)&all_images, sizeof(all_images));
 		file.read((char*)&num_feature_per_image, sizeof(num_feature_per_image));
 		file.read((char*)&feature_start_idx, sizeof(feature_start_idx));
 		file.read((char*)&word_idx_count, sizeof(word_idx_count));
@@ -272,47 +377,50 @@ public:
 		file.close();
 	}
 
+	void buildDatabase(string load_path, int k, int L, string method, string save_path) {
+		cout << "Initial the Database\n";
+		// Database is already initialized in constructor
+
+		cout << "Loading the images from " << load_path << ", use " << method << " for features\n";
+		loadImgs(load_path, method);
+
+		cout << "Building Vocabulary Tree, with " << k << " clusters, " << L << " levels\n";
+		run_KMeans(k, L);
+
+		cout << "Building Histogram for each images\n";
+		build_histogram(vocabulary_tree);
+
+		cout << "Building BoW for each images\n";
+		build_BoW();
+
+		cout << "Saving the database to " << save_path << "\n";
+		save(save_path);
+	}
 
 };
 
-void buildDatabase() {
-	// params: load_path, k, L, method, save_path
-    // print('Initial the Database')
-    // db = Database()
-
-    // print('Loading the images from {}, use {} for features'.format(load_path, method))
-    // db.loadImgs(load_path, method=method)
-
-    // print('Building Vocabulary Tree, with {} clusters, {} levels'.format(k, L))
-    // db.run_KMeans(k=k, L=L)
-
-    // print('Building Histgram for each images')
-    // db.build_histgram(db.vocabulary_tree)
-
-    // print('Building BoW for each images')
-    // db.build_BoW()
-
-    // print('Saving the database to {}'.format(save_path))
-    // db.save(save_path)
-}
-
-
 int main(int argc, char* argv[]) {
 
-	// Define the test path and DVD cover path
-	string test_path = '../data/test';
-	string cover_path = '../data/DVDcovers';
-	// Initial and build the database
-	Database db = Database();
-	buildDatabase();
-	// cover_path, k=5, L=5, method='SIFT', save_path='data_sift.txt'
-	// If we have already build and save the database, we can just load database directly
-	cout << 'Loading the database';
-	db.load('data_sift.txt');
+	//Define the test path and DVD cover path
+	string test_path = "../data/test";
+	string cover_path = "../data/DVDcovers";
 
-	// query a image
-	Mat test = imread(test_path, '/image_01.jpeg');
-	// best_img, best_img_path, best_H, best_K= db.query(test, top_K = 10, method='SIFT')
+	// Initial and build the database
+	Database db;
+
+	// Build database
+	cout << "Building the database...\n";
+	db.buildDatabase(cover_path, 5, 5, "SIFT", "data_sift.txt");
+
+	// Load the database
+	cout << "Loading the database...\n";
+	db.load("data_sift.txt");
+
+	// Query an image
+	string img_path = test_path + "/image_01.jpeg";
+	Mat test = imread(img_path);
+	auto [best_img, best_img_path, best_H, best_K] = db.query(test, 10, "SIFT");
 
 	return 0;
 }
+
