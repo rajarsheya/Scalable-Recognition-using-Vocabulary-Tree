@@ -1,5 +1,5 @@
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------
-// 
+//
 // Enhanced Vocabulary Trees for Real-Time Object Recognition in Image and Video Streams
 // Team members:  Arsheya Raj, Sugam Jaiswal, Josiah Zacharias
 //
@@ -18,6 +18,9 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 #include <fstream>
+#include <ctime>
+//#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
+//#include <experimental/filesystem>
 
 using namespace std;
 using namespace cv;
@@ -31,7 +34,7 @@ private:
 
 public:
 
-    tuple<vector<KeyPoint>, Mat> detect(Mat& img1, string method = "SIFT") {
+    tuple<vector<KeyPoint>, Mat> detect(Mat& img1, string method = "ORB") {
         Mat gray1;
         cvtColor(img1, gray1, COLOR_BGR2GRAY);
         vector<KeyPoint> kp1;
@@ -70,7 +73,7 @@ public:
         return result;
     }
 
-    vector<pair<Mat, Mat>> detectAndMatch(Mat& img1, Mat& img2, string method = "SIFT") {
+    vector<pair<Mat, Mat>> detectAndMatch(Mat& img1, Mat& img2, string method = "ORB") {
         Mat gray1, gray2;
         cvtColor(img1, gray1, COLOR_BGR2GRAY);
         cvtColor(img2, gray2, COLOR_BGR2GRAY);
@@ -260,7 +263,7 @@ private:
     vector<int> word_count;
     map<string, vector<float>> img_to_histogram;  // Maps each image to a histogram
     vector<pair<Mat, string>> all_des;  // Descriptor matrices
-    vector<string> all_images;  // Image paths 
+    vector<string> all_images;  // Image paths
     vector<int> num_feature_per_image;
     vector<int> feature_start_idx;
     VocabNode* vocabulary_tree;
@@ -274,7 +277,7 @@ public:
         feature_start_idx{}, vocabulary_tree{ nullptr }, word_idx_count{ 0 } {
     }
 
-    void loadImgs(string data_path, string method = "SIFT") {
+    void loadImgs(string data_path, string method = "ORB") {
         this->data_path = data_path;
 
         // Assuming a FeatureDetector class exists that has a detect method
@@ -294,7 +297,7 @@ public:
                     // get all the keypoints and descriptors for each image
                     vector<KeyPoint> kpts;
                     Mat des;
-                    tie(kpts, des) = fd.detect(img, method); 
+                    tie(kpts, des) = fd.detect(img, method);
 
                     // Append descriptors and image paths to all_des
                     for (int i = 0; i < des.rows; i++) {
@@ -323,6 +326,7 @@ public:
         }
 
         num_imgs = (int)all_images.size();
+        cout << "No. of images: " << num_imgs << endl;
     }
 
 
@@ -417,11 +421,11 @@ public:
     void build_histogram(VocabNode* node) {
         // Build the histgram for the leaf nodes
         if (node->children.empty()) {
-            for (auto const& [img, count] : node->occurrences_in_img) {
-                if (img_to_histogram.find(img) == img_to_histogram.end()) {
-                    img_to_histogram[img] = vector<float>(word_idx_count, 0);
+            for (auto const& occ : node->occurrences_in_img) {
+                if (img_to_histogram.find(occ.first) == img_to_histogram.end()) {
+                    img_to_histogram[occ.first] = vector<float>(word_idx_count, 0);
                 }
-                img_to_histogram[img][node->index] += count;
+                img_to_histogram[occ.first][node->index] += occ.second;
             }
         }
         else {
@@ -458,11 +462,11 @@ public:
 
         for (const string& img_path : img_path_list) {
             Mat img = imread(img_path);
-            auto correspondences = fd.detectAndMatch(img, query, method); 
+            auto correspondences = fd.detectAndMatch(img, query, method);
             
             int inliers;
             Mat optimal_H;
-            tie(inliers, optimal_H) = RANSAC_find_optimal_Homography(correspondences, 2000); 
+            tie(inliers, optimal_H) = RANSAC_find_optimal_Homography(correspondences, 2000);
 
             cout << "Running RANSAC... Image: " << img_path << " Inliers: " << inliers << endl;
 
@@ -507,8 +511,9 @@ public:
         Mat des;
 
         // compute the features
-        tie(kpts, des) = fd.detect(input_img, method); 
-
+        tie(kpts, des) = fd.detect(input_img, method);
+        
+        word_idx_count = 100000;
         vector<float> q(word_idx_count, 0.0);
         vector<VocabNode*> node_lst;
 
@@ -548,7 +553,7 @@ public:
             string img = target_img_lst[j];
             vector<float> t = BoW[img];
             // lower scores mean closer match between images
-            score_lst[j] = 2 + accumulate(begin(q), end(q), 0.0f) - accumulate(begin(t), end(t), 0.0f); 
+            score_lst[j] = 2 + accumulate(begin(q), end(q), 0.0f) - accumulate(begin(t), end(t), 0.0f);
         }
 
         // sort the similarity and take the top_K most similar image
@@ -645,41 +650,56 @@ public:
 int main(int argc, char* argv[]) {
     //Define the test path and DVD cover path
     string test_path = "./data/test";
-    string cover_path = "./data/DVDcovers";
+    string cover_path = "./data/coco_5000";
 
     // // Initial and build the database
     Database db;
 
     // // Build database
     cout << "Building the database...\n";
-    db.buildDatabase(cover_path, 5, 5, "SIFT", "data_sift.txt");
-
+    time_t start = time(NULL);
+    db.buildDatabase(cover_path, 3, 3, "ORB", "data_sift.txt");
+    time_t end = time(NULL);
+    cout << "Time taken: " << difftime(end, start) << " sec" << endl;
+    
     // Load the database
     cout << "Loading the database...\n";
+    start = time(NULL);
     db.load("data_sift.txt");
+    end = time(NULL);
     cout << "Database loaded\n";
+    cout << "Time taken: " << difftime(end, start) << " sec" << endl;
 
     // Query an image
     cout << "Querying an image\n";
     // string img_path = test_path + "/iRobot.jpg";
-    string img_peth = "./data/test/iRobot.jpg";
+    string img_peth = "./data/test/query_02.jpg";
     Mat test = imread(img_peth);
     Mat best_img;
     string best_img_path;
     Mat best_H;
     vector<cv::String> best_K;
-    tie(best_img, best_img_path, best_H, best_K) = db.query(test, 1, "SIFT");
+    start = time(NULL);
+    tie(best_img, best_img_path, best_H, best_K) = db.query(test, 1, "ORB");
+    end = time(NULL);
+    cout << "Time taken: " << difftime(end, start) << " sec" << endl;
 
+    cout << "best_img_path = " << best_img_path << endl;
+    
     // Assuming best_img is the best matching image
     Mat top_choice = imread(best_img_path, IMREAD_COLOR);
 
     // Display the test image
     namedWindow("Test Image", WINDOW_NORMAL);
     imshow("Test Image", test);
-
-    // Display the best matching image
-    namedWindow("Best Match", WINDOW_NORMAL);
-    imshow("Best Match", top_choice);
+    
+    try {
+        // Display the best matching image
+        namedWindow("Best Match", WINDOW_NORMAL);
+        imshow("Best Match", top_choice);
+    } catch (const cv::Exception& e) {
+        cerr << "Caught OpenCV exception: " << e.what() << endl;
+    }
 
     waitKey(0);
     

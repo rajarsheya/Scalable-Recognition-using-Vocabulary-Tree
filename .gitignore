@@ -4,8 +4,12 @@
 /Project/Project/ORB Feature Detector.png
 /Project/Project/object.jpg
 /Project/Project/query.jpg
-Project/Project/data/DVDcovers/.DS_Store
+/Project/Project/data/DVDcovers/.DS_Store
+/Project/Project/data/coco_5000/*
+/Project/Project/data/DVDcovers/*
+/Project/Project/data/test/*
 
+.gitignore
 .DS_Store
 ~$CSS587_PaperPresentation_ArsheyaSugamJosiah.pptx
 
@@ -16,9 +20,3 @@ Project/Project/data/DVDcovers/.DS_Store
 /Build/Makefile
 /Build/data_sift.txt
 /Build/data/DVDcovers/.DS_Store
-
-
-
-
-
-
