@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /Project/.DS_Store
 /Project/Project/feature.py
 /Project/Project/homography.py
@@ -20,3 +21,7 @@
 /Build/Makefile
 /Build/data_sift.txt
 /Build/data/DVDcovers/.DS_Store
+=======
+*.nc
+*.DS_Store
+>>>>>>> origin/Arsheya
