@@ -327,6 +327,7 @@ private:
     map<string, vector<float>> img_to_histogram;  // Maps each image to a histogram
     vector<pair<Mat, string>> all_des;  // Descriptor matrices
     vector<string> all_images;  // Image paths
+    map<string, Mat> frames; // Frames from video
     vector<int> num_feature_per_image;
     vector<int> feature_start_idx;
     VocabNode* vocabulary_tree;
@@ -338,6 +339,34 @@ public:
         data_path{}, num_imgs{ 0 }, word_to_img{}, BoW{}, word_count{},
         img_to_histogram{}, all_des{}, all_images{}, num_feature_per_image{},
         feature_start_idx{}, vocabulary_tree{ nullptr }, word_idx_count{ 0 } {
+    }
+    
+    //-------------------------------------------------------------Pre-Process the Images--------------------------------------------------------------------
+    void processImg(Mat img, string img_path, FeatureDetector1 fd, string method) {
+            // get all the keypoints and descriptors for each image
+            vector<KeyPoint> kpts;
+            Mat des;
+            tie(kpts, des) = fd.detect1(img, method);
+
+            // Append descriptors and image paths to all_des
+            for (int i = 0; i < des.rows; i++) {
+                Mat row = des.row(i);
+                all_des.push_back(make_pair(row, img_path));
+            }
+
+            // Append image paths to all_image
+            all_images.push_back(img_path);
+
+            // Compute start index
+            int idx = 0;
+            if (!num_feature_per_image.empty())
+                idx = num_feature_per_image.back() + feature_start_idx.back();
+
+            // Append descriptor count to num_feature_per_image
+            num_feature_per_image.push_back(des.rows);
+
+            // Append start index to feature_start_idx
+            feature_start_idx.push_back(idx);
     }
     
     //-------------------------------------------------------Load Images in databse function-----------------------------------------------------------------
@@ -353,39 +382,64 @@ public:
                 string extension = p.path().extension().string();
                 transform(extension.begin(), extension.end(), extension.begin(), ::tolower); // Convert the extension to lower case
 
-                // Check if the file has an image extension
-                if (extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".bmp") {
-                    // Load the image
-                    Mat img = imread(img_path);
-
-                    // get all the keypoints and descriptors for each image
-                    vector<KeyPoint> kpts;
-                    Mat des;
-                    tie(kpts, des) = fd.detect1(img, method);
-
-                    // Append descriptors and image paths to all_des
-                    for (int i = 0; i < des.rows; i++) {
-                        Mat row = des.row(i);
-                        all_des.push_back(make_pair(row, img_path));
+                if (extension == ".avi" || extension == ".mp4" || extension == ".mkv" || extension == ".flv"
+                                        || extension == ".mov" || extension == ".wmv") {
+                                    // File is a video
+                    cout << "Found video: " << img_path << ". Processing frames..." << endl;
+                    VideoCapture cap(img_path);
+                    Mat frame;
+                    int frameNumber = 0;
+                    while (cap.read(frame)) {
+                        // Process frames
+                        string frame_path = img_path + "_frame_" + to_string(frameNumber);
+                        frames[frame_path] = frame.clone();
+                        processImg(frame, frame_path, fd, method);
+                        frameNumber++;
                     }
-                    
-                    // Append image paths to all_image
-                    all_images.push_back(img_path);
-
-                    // Compute start index
-                    int idx = 0;
-                    if (!num_feature_per_image.empty())
-                        idx = num_feature_per_image.back() + feature_start_idx.back();
-
-                    // Append descriptor count to num_feature_per_image
-                    num_feature_per_image.push_back(des.rows);
-
-                    // Append start index to feature_start_idx
-                    feature_start_idx.push_back(idx);
-
-                } else { // Not an image file. Skip it.
-                    continue;
                 }
+                else{
+                    // File is not a video. Check if the file has an image extension
+                    if (extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".bmp") {
+                        // Load the image
+                        Mat img = imread(img_path);
+                        processImg(img, img_path, fd, method);
+                    }
+                }
+                
+//
+//                // Check if the file has an image extension
+//                if (extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".bmp") {
+//                    // Load the image
+//                    Mat img = imread(img_path);
+//
+//                    // get all the keypoints and descriptors for each image
+//                    vector<KeyPoint> kpts;
+//                    Mat des;
+//                    tie(kpts, des) = fd.detect1(img, method);
+//
+//                    // Append descriptors and image paths to all_des
+//                    for (int i = 0; i < des.rows; i++) {
+//                        Mat row = des.row(i);
+//                        all_des.push_back(make_pair(row, img_path));
+//                    }
+//
+//                    // Append image paths to all_image
+//                    all_images.push_back(img_path);
+//
+//                    // Compute start index
+//                    int idx = 0;
+//                    if (!num_feature_per_image.empty())
+//                        idx = num_feature_per_image.back() + feature_start_idx.back();
+//
+//                    // Append descriptor count to num_feature_per_image
+//                    num_feature_per_image.push_back(des.rows);
+//
+//                    // Append start index to feature_start_idx
+//                    feature_start_idx.push_back(idx);
+//
+//                } else { // Not an image file. Skip it.
+//                    continue;
+//                }
             }
         }
 
@@ -552,7 +606,18 @@ public:
         Mat best_img, best_H;
 
         for (const string& img_path : img_path_list) {
-            Mat img = imread(img_path);
+            //Mat img = imread(img_path);
+            Mat img;
+            // Check if the best match is a frame from a video
+            if (img_path.find("_frame_") != string::npos) {
+                // The best match is a frame from a video, retrieve it from the frames map
+                img = frames[img_path];
+            }
+            else{
+                // The best match is not a frame from a video, load the image from the path
+                img = imread(img_path);
+            }
+            
             auto correspondences = fd.detectAndMatch(img, query, method);
             
             int inliers;
