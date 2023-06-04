@@ -1,7 +1,10 @@
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------
 //
-// Enhanced Vocabulary Trees for Real-Time Object Recognition in Image and Video Streams
-// Team members:  Arsheya Raj, Sugam Jaiswal, Josiah Zacharias
+//  Enhanced Vocabulary Trees for Real-Time Object Recognition in Image and Video Streams
+//  Team members:  Arsheya Raj, Sugam Jaiswal, Josiah Zacharias
+//
+//  This project is based on the research paper which has the topic as "Scalable Recognition with a Vocabulary Tree".
+//  Paper Link: https://ieeexplore-ieee-org.offcampus.lib.washington.edu/document/1641018
 //
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -19,6 +22,8 @@
 #include <opencv2/imgproc.hpp>
 #include <fstream>
 #include <ctime>
+#include <time.h>   // this is needed for high resolution clock
+#include <chrono>   // for high resolution clock
 //#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING
 //#include <experimental/filesystem>
 
@@ -26,28 +31,65 @@ using namespace std;
 using namespace cv;
 namespace fs = std::filesystem;
 
-//feature.cpp
+//-------------------------------------------------Inverted File Vocabulary Tree Node------------------------------------------------------------------------
+// Structure to store feature vectors, kmeans cluster and related cluster information
+struct VocabNode {
+    // No OpenCV equivalent KMeans object in C++ API. OpenCV's k-means function —
+    // cv::kmeans — is procedural rather than object-oriented, meaning rather than creating
+    // a kmeans object and calling methods on it, we provide data to the function along with the
+    // number of clusters we want and other parameters, and it returns the centroid of the clusters it found.
+
+    Mat value; // Feature vector for this node
+    Mat centers; // Centroids of clusters
+    Mat labels; // Labels of each point
+    vector<VocabNode*> children; // Child nodes
+    map<string, int> occurrences_in_img;  // Mapping of image id to occurrences
+    int index;  // Index of this node
+};
+
+//--------------------------------------------------------Feature Detector Class-----------------------------------------------------------------------------
 class FeatureDetector1 {
 private:
-    Ptr<SIFT> sift = SIFT::create();
-    Ptr<ORB> orb = ORB::create();
+    Ptr<FeatureDetector> sift = SIFT::create(); //SIFT
+    Ptr<FeatureDetector> orb = ORB::create();   //ORB
+    Ptr<FeatureDetector> brisk = BRISK::create();   //BRISK
+    Ptr<FeatureDetector> akaze = AKAZE::create();   //AKAZE
 
 public:
-
-    tuple<vector<KeyPoint>, Mat> detect(Mat& img1, string method = "ORB") {
+    //--------------------------------------------------------Keypoint Detection-----------------------------------------------------------------------------
+    tuple<vector<KeyPoint>, Mat> detect1(Mat& img1, string method) {
         Mat gray1;
         cvtColor(img1, gray1, COLOR_BGR2GRAY);
         vector<KeyPoint> kp1;
         Mat des1;
         if (method == "SIFT") {
-            sift->detectAndCompute(gray1, noArray(), kp1, des1);
+            sift->detect(gray1, kp1);
+            Ptr<DescriptorExtractor> extractor = SIFT::create();
+            extractor->compute(gray1, kp1, des1);
+            //sift->detectAndCompute(gray1, noArray(), kp1, des1);
         }
         else if (method == "ORB") {
-            orb->detectAndCompute(gray1, noArray(), kp1, des1);
+            orb->detect(gray1, kp1);
+            Ptr<DescriptorExtractor> extractor = ORB::create();
+            extractor->compute(gray1, kp1, des1);
+            //orb->detectAndCompute(gray1, noArray(), kp1, des1);
+        }
+        else if (method == "BRISK") {
+            brisk->detect(gray1, kp1);
+            Ptr<DescriptorExtractor> extractor = BRISK::create();
+            extractor->compute(gray1, kp1, des1);
+            //orb->detectAndCompute(gray1, noArray(), kp1, des1);
+        }
+        else if (method == "AKAZE") {
+            akaze->detect(gray1, kp1);
+            Ptr<DescriptorExtractor> extractor = AKAZE::create();
+            extractor->compute(gray1, kp1, des1);
+            //orb->detectAndCompute(gray1, noArray(), kp1, des1);
         }
         return make_tuple(kp1,des1);
     }
-
+    
+    //--------------------------------------------------Matching Function for Keypoints----------------------------------------------------------------------
     vector<tuple<Point2f, Point2f, float>> match(vector<KeyPoint>& kp1, vector<KeyPoint>& kp2, Mat& des1, Mat& des2) {
         vector<tuple<Point2f, Point2f, float>> result;
 
@@ -72,8 +114,9 @@ public:
 
         return result;
     }
-
-    vector<pair<Mat, Mat>> detectAndMatch(Mat& img1, Mat& img2, string method = "ORB") {
+    
+    //------------------------------------------------Detecting and Matching the Keypoints Detection---------------------------------------------------------
+    vector<pair<Mat, Mat>> detectAndMatch(Mat& img1, Mat& img2, string method) {
         Mat gray1, gray2;
         cvtColor(img1, gray1, COLOR_BGR2GRAY);
         cvtColor(img2, gray2, COLOR_BGR2GRAY);
@@ -82,18 +125,50 @@ public:
         Mat des1, des2;
 
         if (method == "SIFT") {
-            sift->detectAndCompute(gray1, noArray(), kp1, des1);
-            sift->detectAndCompute(gray2, noArray(), kp2, des2);
+            sift->detect(gray1, kp1);
+            Ptr<DescriptorExtractor> extractor = SIFT::create();
+            extractor->compute(gray1, kp1, des1);
+            sift->detect(gray2, kp2);
+            Ptr<DescriptorExtractor> extractor1 = SIFT::create();
+            extractor1->compute(gray2, kp2, des2);
+            //sift->detectAndCompute(gray1, noArray(), kp1, des1);
+            //sift->detectAndCompute(gray2, noArray(), kp2, des2);
         }
         else if (method == "ORB") {
-            orb->detectAndCompute(gray1, noArray(), kp1, des1);
-            orb->detectAndCompute(gray2, noArray(), kp2, des2);
+            orb->detect(gray1, kp1);
+            Ptr<DescriptorExtractor> extractor = ORB::create();
+            extractor->compute(gray1, kp1, des1);
+            orb->detect(gray2, kp2);
+            Ptr<DescriptorExtractor> extractor1 = ORB::create();
+            extractor1->compute(gray2, kp2, des2);
+            //orb->detectAndCompute(gray1, noArray(), kp1, des1);
+            //orb->detectAndCompute(gray2, noArray(), kp2, des2);
+        }
+        else if (method == "BRISK") {
+            brisk->detect(gray1, kp1);
+            Ptr<DescriptorExtractor> extractor = BRISK::create();
+            extractor->compute(gray1, kp1, des1);
+            brisk->detect(gray2, kp2);
+            Ptr<DescriptorExtractor> extractor1 = BRISK::create();
+            extractor1->compute(gray2, kp2, des2);
+            //brisk->detectAndCompute(gray1, noArray(), kp1, des1);
+            //brisk->detectAndCompute(gray2, noArray(), kp2, des2);
+        }
+        else if (method == "AKAZE") {
+            akaze->detect(gray1, kp1);
+            Ptr<DescriptorExtractor> extractor = AKAZE::create();
+            extractor->compute(gray1, kp1, des1);
+            akaze->detect(gray2, kp2);
+            Ptr<DescriptorExtractor> extractor1 = AKAZE::create();
+            extractor1->compute(gray2, kp2, des2);
+            //akaze->detectAndCompute(gray1, noArray(), kp1, des1);
+            //akaze->detectAndCompute(gray2, noArray(), kp2, des2);
         }
 
         // Create a matcher
-        BFMatcher matcher(NORM_L2, true);
         vector<DMatch> matches;
-        matcher.match(des1, des2, matches);
+        Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce-Hamming");
+        matcher->match(des1, des2, matches);
 
         vector<pair<Mat, Mat>> correspondences;
         for (int i = 0; i < matches.size(); i++) {
@@ -105,15 +180,17 @@ public:
 
             correspondences.push_back(make_pair(pt1_homogeneous, pt2_homogeneous));
         }
-
+        
         return correspondences;
     }
 
-
+    //------------------------------------------------Drawing the Circles for the keypoints------------------------------------------------------------------
     void drawCircle(Mat& image, vector<KeyPoint>& kp) {
         int H = image.rows;
         int W = image.cols;
-
+        
+        cout << "H=" << H << " " << "W=" << W << endl;
+        
         for (int i = 0; i < kp.size(); i++) {
             Point2f pt = kp[i].pt;
             circle(image, Point(pt.x, pt.y), static_cast<int>(kp[i].size), Scalar(0, 255, 0), 1);
@@ -121,7 +198,7 @@ public:
     }
 };
 
-
+//-----------------------------------------------------------Homography Function-----------------------------------------------------------------------------
 Mat homography(vector<pair<Mat, Mat>> correspondences) {
     int n = (int)correspondences.size(); // number of points
     Mat A = Mat::zeros(2 * n, 9, CV_64F);
@@ -147,23 +224,25 @@ Mat homography(vector<pair<Mat, Mat>> correspondences) {
     return H;
 }
 
+//------------------------------------------Number of rounds needed for RANSAC to have P chance to success---------------------------------------------------
 /*
-find the number of rounds needed for RANSAC to have P chance to success.
-Inputs:
-- p: the probability that the sample match is inlier
-- k: number of matches we need for one round
-- P: the probability success after S rounds
+// Inputs:
+//    - p: the probability that the sample match is inlier
+//    - k: number of matches we need for one round
+//    - P: the probability success after S rounds
 */
 int num_round_needed(double p, int k, double P) {
     double S = log(1 - P) / log(1 - pow(p, k));
     return int(S);
 }
 
-
+//---------------------------------------------------RANSAC optimal Homography Function----------------------------------------------------------------------
+/*
 // Find the optimal homography matrix using RANSAC algorithm
 // Input: a vector of pairs that store the correspondences
 // Output: a 3x3 homography matrix
-// Return a tuple of int and cv::Mat
+// Returns a tuple of int and cv::Mat
+*/
 tuple<int, Mat> RANSAC_find_optimal_Homography(vector<pair<Mat, Mat>> correspondences, int num_rounds = -1) {
     Mat optimal_H;
     int optimal_inliers = 0;
@@ -182,6 +261,8 @@ tuple<int, Mat> RANSAC_find_optimal_Homography(vector<pair<Mat, Mat>> correspond
         Mat H = homography(sample_corr);
         int num_inliers = 0;
         for (auto pair : correspondences) {
+            
+            Mat H = homography(sample_corr);
             Mat pt1 = pair.first;
             Mat pt2 = pair.second;
             
@@ -208,6 +289,7 @@ tuple<int, Mat> RANSAC_find_optimal_Homography(vector<pair<Mat, Mat>> correspond
     return make_tuple(optimal_inliers, optimal_H);
 }
 
+//---------------------------------------------------------Visualize the Homography -------------------------------------------------------------------------
 // not used yet
 Mat visualize_homography(Mat img1, Mat img2, Mat H) {
     int h, w;
@@ -233,26 +315,7 @@ Mat visualize_homography(Mat img1, Mat img2, Mat H) {
     return result;
 }
 
-
-// Structure to store feature vectors, kmeans cluster and related cluster information
-struct VocabNode {
-    // No OpenCV equivalent KMeans object in C++ API. OpenCV's k-means function —
-    // cv::kmeans — is procedural rather than object-oriented, meaning rather than creating
-    // a kmeans object and calling methods on it, we provide data to the function along with the
-    // number of clusters we want and other parameters, and it returns the centroid of the clusters it found.
-
-    // Makes it a little more challenging to translate Python code to OpenCV in C+.
-    // Since the kmeans object is being used to store the results of the k-means clustering, we can instead
-    // store the centroids and labels returned by the cv::kmeans function.
-
-    Mat value; // Feature vector for this node
-    Mat centers; // Centroids of clusters
-    Mat labels; // Labels of each point
-    vector<VocabNode*> children; // Child nodes
-    map<string, int> occurrences_in_img;  // Mapping of image id to occurrences
-    int index;  // Index of this node
-};
-
+//--------------------------------------------------------------Database Class-------------------------------------------------------------------------------
 class Database {
 
 private:
@@ -270,17 +333,18 @@ private:
     int word_idx_count;
 
 public:
-    // Constructor
+    //---------------------------------------------------------------Constructor-----------------------------------------------------------------------------
     Database() :
         data_path{}, num_imgs{ 0 }, word_to_img{}, BoW{}, word_count{},
         img_to_histogram{}, all_des{}, all_images{}, num_feature_per_image{},
         feature_start_idx{}, vocabulary_tree{ nullptr }, word_idx_count{ 0 } {
     }
-
+    
+    //-------------------------------------------------------Load Images in databse function-----------------------------------------------------------------
     void loadImgs(string data_path, string method = "ORB") {
         this->data_path = data_path;
 
-        // Assuming a FeatureDetector class exists that has a detect method
+        // Assuming a FeatureDetector1 class exists that has a detect method
         FeatureDetector1 fd;
 
         for (auto& p : fs::recursive_directory_iterator(data_path)) {
@@ -297,7 +361,7 @@ public:
                     // get all the keypoints and descriptors for each image
                     vector<KeyPoint> kpts;
                     Mat des;
-                    tie(kpts, des) = fd.detect(img, method);
+                    tie(kpts, des) = fd.detect1(img, method);
 
                     // Append descriptors and image paths to all_des
                     for (int i = 0; i < des.rows; i++) {
@@ -329,9 +393,10 @@ public:
         cout << "No. of images: " << num_imgs << endl;
     }
 
-
+    //-----------------------------------------------function for Running K-meanns algorithm-----------------------------------------------------------------
     void run_KMeans(int k, int L) {
         int total_nodes = (k * (pow(k, L)) - 1) / (k - 1);
+        cout << "Total Nodes = " << total_nodes << endl;
         int n_leafs = pow(k, L);
         word_count = vector<int>(n_leafs, 0);  // Initialize all elements to zero
 
@@ -343,7 +408,7 @@ public:
         }
     }
 
-
+    //------------------------------------------------function for printing Vocab Tree-----------------------------------------------------------------------
     void print_tree(VocabNode* node) {
         vector<VocabNode*> children = node->children;
         if (children.size() == 0) {
@@ -356,7 +421,7 @@ public:
         }
     }
 
-
+    //---------------------------------------------------Hierarchical K-Means function-----------------------------------------------------------------------
     VocabNode* hierarchical_KMeans(int k, int L, vector<pair<Mat, string>>& des_and_path) {
         // Divide the given descriptor vector into k clusters
         Mat descriptors;
@@ -414,10 +479,11 @@ public:
                 }
             }
         }
+        
         return root;
     }
 
-
+    //--------------------------------------------------------------Build Histogram--------------------------------------------------------------------------
     void build_histogram(VocabNode* node) {
         // Build the histgram for the leaf nodes
         if (node->children.empty()) {
@@ -435,8 +501,7 @@ public:
         }
     }
 
-
-    // Bag of words
+    //--------------------------------------------------------------Bag of Words-----------------------------------------------------------------------------
     void build_BoW() {
         for (size_t j = 0; j < all_images.size(); ++j) {
             string img = all_images[j];
@@ -453,7 +518,7 @@ public:
         }
     }
 
-
+    //-----------------------------------------------------Spatial Verification------------------------------------------------------------------------------
     tuple<Mat, string, Mat> spatial_verification( Mat& query,  vector<string>& img_path_list,  string& method) {
         FeatureDetector1 fd;
         int best_inliers = numeric_limits<int>::lowest();
@@ -480,7 +545,7 @@ public:
         return make_tuple(best_img, best_img_path, best_H);
     }
 
-
+    //----------------------------------------------------function to get the leaf nodes---------------------------------------------------------------------
     VocabNode* get_leaf_nodes(VocabNode* node, vector<float>& descriptor) {
         // If this node has no children, it is a leaf node.
         if (node->children.empty()) {
@@ -503,15 +568,15 @@ public:
         return get_leaf_nodes(closest_child, descriptor);
     }
 
-
-    // pings spatial_verification, which pings homography.cpp
+    //--------------------------------------------------------------query image function---------------------------------------------------------------------
     tuple<Mat, string, Mat, vector<string>> query(Mat input_img, int top_K, string method) {
         FeatureDetector1 fd;
         vector<KeyPoint> kpts;
         Mat des;
-
+        
+        fd.drawCircle(input_img, kpts);
         // compute the features
-        tie(kpts, des) = fd.detect(input_img, method);
+        tie(kpts, des) = fd.detect1(input_img, method);
         
         word_idx_count = 100000;
         vector<float> q(word_idx_count, 0.0);
@@ -541,6 +606,7 @@ public:
             for (auto const& entry : n->occurrences_in_img) {
                 string img = entry.first;
                 int count = entry.second;
+                cout<< "Number of img from database that have the same visual words" << count << endl;
                 if (find(target_img_lst.begin(), target_img_lst.end(), img) == target_img_lst.end()) {
                     target_img_lst.push_back(img);
                 }
@@ -555,7 +621,11 @@ public:
             // lower scores mean closer match between images
             score_lst[j] = 2 + accumulate(begin(q), end(q), 0.0f) - accumulate(begin(t), end(t), 0.0f);
         }
-
+            
+        for(int i=0; i<target_img_lst.size();i++){
+            cout << "i=" << i << "score[i]=" << score_lst[i] << endl;
+        }
+        
         // sort the similarity and take the top_K most similar image
         // get top_K best match images
         vector<int> indices(score_lst.size());
@@ -578,11 +648,15 @@ public:
         Mat best_H;
 
         tie(best_img, best_img_path, best_H) = spatial_verification(input_img, best_K_match_imgs, method);
-
+        
+        fd.drawCircle(input_img, kpts);
+        fd.drawCircle(best_img, kpts);
+        //visualize_homography(input_img, best_img, best_H);
+        
         return make_tuple(best_img, best_img_path, best_H, best_K_match_imgs);
     }
 
-
+    //--------------------------------------------------------------Saving the Database----------------------------------------------------------------------
     void save(const string& db_name) {
         ofstream file(db_name, ios::binary);
 
@@ -602,7 +676,7 @@ public:
         file.close();
     }
 
-
+    //--------------------------------------------------------------Loading the Database---------------------------------------------------------------------
     void load(const string& db_name) {
         ifstream file(db_name, ios::binary);
 
@@ -621,7 +695,7 @@ public:
 
         file.close();
     }
-
+    //--------------------------------------------------------------Building the Database--------------------------------------------------------------------
     void buildDatabase(string load_path, int k, int L, string method, string save_path) {
         cout << "Loading the images from " << load_path << ", use " << method << " for features\n";
         loadImgs(load_path, method);
@@ -647,42 +721,85 @@ public:
 
 };
 
+//----------------------------------------------------------Driver Code - main Class-------------------------------------------------------------------------
 int main(int argc, char* argv[]) {
-    //Define the test path and DVD cover path
-    string test_path = "./data/test";
-    string cover_path = "./data/coco_5000";
+    //Define the query image path and Image Dataset path
+    string test_path = "./data/query";
+    string cover_path = "./data/DVD-DB-50";
 
-    // // Initial and build the database
+    string fdname;
+    int fdnumber;
+    cout << "Enter the feature detector number from the following: " << endl;
+    cout << "1 - SIFT (Recommended)" << endl;
+    cout << "2 - ORB" << endl;
+    cout << "3 - BRISK" << endl;
+    cout << "4 - AKAZE" << endl;
+    cin >> fdnumber;
+    if(fdnumber == 1){
+        fdname = "SIFT";
+    }
+    else if(fdnumber == 2){
+        fdname = "ORB";
+    }
+    else if(fdnumber == 3){
+        fdname = "BRISK";
+    }
+    else if(fdnumber == 4){
+        fdname = "AKAZE";
+    }
+    
+    // Initial and build the database
     Database db;
 
-    // // Build database
+    // Build database
     cout << "Building the database...\n";
-    time_t start = time(NULL);
-    db.buildDatabase(cover_path, 3, 3, "ORB", "data_sift.txt");
-    time_t end = time(NULL);
-    cout << "Time taken: " << difftime(end, start) << " sec" << endl;
+    std::chrono::time_point<std::chrono::high_resolution_clock> startdbbuild, enddbbuild;
+    startdbbuild = std::chrono::high_resolution_clock::now();
+    db.buildDatabase(cover_path, 3, 3, fdname, "Database_DVD_DB_50.txt");
+    enddbbuild = std::chrono::high_resolution_clock::now();
+    std::chrono::duration< double > Time_for_db_build = enddbbuild - startdbbuild;
+    cout << "Database Built\n";
+    cout << "Time taken to build the database: " << Time_for_db_build.count() << " sec" << endl;
     
+    /*
+    // Save the database
+    cout << "Saving the database...\n";
+    std::chrono::time_point<std::chrono::high_resolution_clock> startdbsave, enddbsave;
+    startdbsave = std::chrono::high_resolution_clock::now();
+    db.save("Database_DVD_DB_50.txt");
+    enddbsave = std::chrono::high_resolution_clock::now();
+    std::chrono::duration< double > Time_for_db_save = enddbsave - startdbsave;
+    cout << "Database saved\n";
+    cout << "Time taken to save the database: " << Time_for_db_save.count() << " sec" << endl;
+    */
+    
+    /*
     // Load the database
     cout << "Loading the database...\n";
-    start = time(NULL);
-    db.load("data_sift.txt");
-    end = time(NULL);
+    std::chrono::time_point<std::chrono::high_resolution_clock> startdbload, enddbload;
+    startdbload = std::chrono::high_resolution_clock::now();
+    db.load("Database_DVD_DB_50.txt");
+    enddbload = std::chrono::high_resolution_clock::now();
+    std::chrono::duration< double > Time_for_db_load = enddbload - startdbload;
     cout << "Database loaded\n";
-    cout << "Time taken: " << difftime(end, start) << " sec" << endl;
-
+    cout << "Time taken to load the database: " << Time_for_db_load.count() << " sec" << endl;
+    */
+    
     // Query an image
-    cout << "Querying an image\n";
-    // string img_path = test_path + "/iRobot.jpg";
-    string img_peth = "./data/test/query_02.jpg";
-    Mat test = imread(img_peth);
+    cout << "Querying an image...\n";
+    string img_path = test_path + "/query_01.jpg";
+    Mat test = imread(img_path);
     Mat best_img;
     string best_img_path;
     Mat best_H;
     vector<cv::String> best_K;
-    start = time(NULL);
-    tie(best_img, best_img_path, best_H, best_K) = db.query(test, 1, "ORB");
-    end = time(NULL);
-    cout << "Time taken: " << difftime(end, start) << " sec" << endl;
+    std::chrono::time_point<std::chrono::high_resolution_clock> startquery, endquery;
+    startquery = std::chrono::high_resolution_clock::now();
+    tie(best_img, best_img_path, best_H, best_K) = db.query(test, 1, fdname);
+    endquery = std::chrono::high_resolution_clock::now();
+    std::chrono::duration< double > Time_for_querying = endquery - startquery;
+    cout << "Querying an image done!\n";
+    cout << "Time taken for querying: " << Time_for_querying.count() << " sec" << endl;
 
     cout << "best_img_path = " << best_img_path << endl;
     
@@ -700,9 +817,7 @@ int main(int argc, char* argv[]) {
     } catch (const cv::Exception& e) {
         cerr << "Caught OpenCV exception: " << e.what() << endl;
     }
-
     waitKey(0);
     
     return 0;
-    
 }
