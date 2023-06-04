@@ -3,7 +3,7 @@
 //  Enhanced Vocabulary Trees for Real-Time Object Recognition in Image and Video Streams
 //  Team members:  Arsheya Raj, Sugam Jaiswal, Josiah Zacharias
 //
-//  This project is based on the research paper which has the topic as "Scalable Recognition with a Vocabulary Tree".
+//  This project is inspired on the research paper which has the topic as "Scalable Recognition with a Vocabulary Tree".
 //  Paper Link: https://ieeexplore-ieee-org.offcampus.lib.washington.edu/document/1641018
 //
 //-----------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -341,7 +341,7 @@ public:
     }
     
     //-------------------------------------------------------Load Images in databse function-----------------------------------------------------------------
-    void loadImgs(string data_path, string method = "ORB") {
+    void loadImgs(string data_path, string method) {
         this->data_path = data_path;
 
         // Assuming a FeatureDetector1 class exists that has a detect method
@@ -368,7 +368,7 @@ public:
                         Mat row = des.row(i);
                         all_des.push_back(make_pair(row, img_path));
                     }
-
+                    
                     // Append image paths to all_image
                     all_images.push_back(img_path);
 
@@ -393,21 +393,6 @@ public:
         cout << "No. of images: " << num_imgs << endl;
     }
 
-    //-----------------------------------------------function for Running K-meanns algorithm-----------------------------------------------------------------
-    void run_KMeans(int k, int L) {
-        int total_nodes = (k * (pow(k, L)) - 1) / (k - 1);
-        cout << "Total Nodes = " << total_nodes << endl;
-        int n_leafs = pow(k, L);
-        word_count = vector<int>(n_leafs, 0);  // Initialize all elements to zero
-
-        try {
-            vocabulary_tree = hierarchical_KMeans(k, L, all_des);
-        } catch (const cv::Exception& e) {
-            cerr << "Caught OpenCV exception: " << e.what() << endl;
-            cerr << "Error occurred at k = " << k << ", L = " << L << endl;
-        }
-    }
-
     //------------------------------------------------function for printing Vocab Tree-----------------------------------------------------------------------
     void print_tree(VocabNode* node) {
         vector<VocabNode*> children = node->children;
@@ -415,6 +400,7 @@ public:
             cout << node->index << endl;
         }
         else {
+            cout << node->index << " -> ";
             for (VocabNode* c : children) {
                 print_tree(c);
             }
@@ -428,26 +414,13 @@ public:
         for (int i = 0; i < des_and_path.size(); i++) {
             descriptors.push_back(des_and_path[i].first);
         }
-
+        descriptors.convertTo(descriptors, CV_32F);
         VocabNode* root = new VocabNode();
         Mat labels, centers;
         int attempts = 5;
-        TermCriteria criteria = TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 10, 0.2);
+        TermCriteria criteria = TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 10, 0.00000001);
         
-        try {
-            if (descriptors.rows >= k) {
-                kmeans(descriptors, k, labels, criteria, attempts, KMEANS_PP_CENTERS, centers);
-                root->labels = labels;
-                root->centers = centers;
-            } else {
-                // Adjust the number of clusters or skip the kmeans() call
-            }
-        } catch (const cv::Exception& e) {
-            cerr << "Caught OpenCV exception in kmeans: " << e.what() << endl;
-            cerr << "Error occurred at k = " << k << ", L = " << L << endl;
-        }
-
-        // If we reach the leaf node
+        // If we reach the leaf node (base case)
         if (L == 0) {
             // Assign the index to the leaf nodes.
             root->index = word_idx_count++;
@@ -459,27 +432,80 @@ public:
             word_count[root->index] = (int)root->occurrences_in_img.size();
             return root;
         }
-
-        // If we are not on the leaf level, then for each cluster,
-        // we recursively run KMeans
-        for (int i = 0; i < k; i++) {
-            vector<pair<Mat, string>> cluster_i;
-            for (int j = 0; j < des_and_path.size(); j++) {
-                if (root->labels.total() > 0 && root->labels.at<int>(j) == i) {
-                    cluster_i.push_back(des_and_path[j]);
-                }
-            }
-            if (!cluster_i.empty() && root->labels.total() > 0) {
-                try {
-                VocabNode* node_i = hierarchical_KMeans(k, L - 1, cluster_i);
-                root->children.push_back(node_i);
-                } catch (const cv::Exception& e) {
-                    cerr << "Caught OpenCV exception in hierarchical_KMeans: " << e.what() << endl;
-                    cerr << "Error occurred at k = " << k << ", L = " << L << endl;
-                }
-            }
-        }
         
+        try {
+            if (descriptors.rows >= k) {
+                kmeans(descriptors, k, labels, criteria, attempts, KMEANS_PP_CENTERS, centers);
+                root->labels = labels;
+                root->centers = centers;
+                //cout<< "centers:" << centers << endl;
+                
+                // If we are not on the leaf level, then for each cluster,
+                // we recursively run KMeans
+                for (int i = 0; i < k; i++) {
+                    vector<pair<Mat, string>> cluster_i;
+                    for (int j = 0; j < des_and_path.size(); j++) {
+                        if (root->labels.total() > 0 && root->labels.at<int>(j) == i) {
+                            cluster_i.push_back(des_and_path[j]);
+                        }
+                    }
+                    if (!cluster_i.empty() && root->labels.total() > 0) {
+                        try {
+                        VocabNode* node_i = hierarchical_KMeans(k, L - 1, cluster_i);
+                        root->children.push_back(node_i);
+                        } catch (const cv::Exception& e) {
+                            cerr << "Caught OpenCV exception in hierarchical_KMeans: " << e.what() << endl;
+                            cerr << "Error occurred at k = " << k << ", L = " << L << endl;
+                        }
+                    }
+                    
+                }
+                
+            } else {
+                // Adjust the number of clusters or skip the kmeans() call. // WORK ON THIS
+                cout<< "The number of descriptors is less than K. Choose a lower value for K in K-means" << endl;
+                /*
+                int rows = k - descriptors.rows;
+                kmeans(descriptors, descriptors.rows, labels, criteria, attempts, KMEANS_PP_CENTERS, centers);
+                for (int i = 0; i < rows; i++) {
+                    root->labels = labels;
+                    root->centers = centers;
+                }
+                // If we are not on the leaf level, then for each cluster,
+                // we recursively run KMeans
+                for (int i = 0; i < k; i++) {
+                    vector<pair<Mat, string>> cluster_i;
+                    for (int j = 0; j < des_and_path.size(); j++) {
+                        if (root->labels.total() > 0 && root->labels.at<int>(j) == i) {
+                            cluster_i.push_back(des_and_path[j]);
+                        }
+                    }
+                    if (!cluster_i.empty() && root->labels.total() > 0) {
+                        try {
+                            VocabNode* node_i = hierarchical_KMeans(k, L - 1, cluster_i);
+                            root->children.push_back(node_i);
+                        } catch (const cv::Exception& e) {
+                            cerr << "Caught OpenCV exception in hierarchical_KMeans: " << e.what() << endl;
+                            cerr << "Error occurred at k = " << k << ", L = " << L << endl;
+                        }
+                    }
+                    else{
+                        try {
+                            VocabNode* node_i = hierarchical_KMeans(k, L - 1, des_and_path);
+                            root->children.push_back(node_i);
+                        } catch (const cv::Exception& e) {
+                            cerr << "Caught OpenCV exception in hierarchical_KMeans: " << e.what() << endl;
+                            cerr << "Error occurred at k = " << k << ", L = " << L << endl;
+                        }
+                    }
+                }
+                */
+            }
+        } catch (const cv::Exception& e) {
+            cerr << "Caught OpenCV exception in kmeans: " << e.what() << endl;
+            cerr << "Error occurred at k = " << k << ", L = " << L << endl;
+        }
+
         return root;
     }
 
@@ -563,7 +589,7 @@ public:
                 closest_distance = distance;
             }
         }
-
+        
         // Recurse on the closest child node.
         return get_leaf_nodes(closest_child, descriptor);
     }
@@ -574,11 +600,12 @@ public:
         vector<KeyPoint> kpts;
         Mat des;
         
-        fd.drawCircle(input_img, kpts);
+        //fd.drawCircle(input_img, kpts);
         // compute the features
         tie(kpts, des) = fd.detect1(input_img, method);
         
-        word_idx_count = 100000;
+        cout << "word_idx_count = " << word_idx_count << endl;
+        //word_idx_count = 10000;
         vector<float> q(word_idx_count, 0.0);
         vector<VocabNode*> node_lst;
 
@@ -606,7 +633,8 @@ public:
             for (auto const& entry : n->occurrences_in_img) {
                 string img = entry.first;
                 int count = entry.second;
-                cout<< "Number of img from database that have the same visual words" << count << endl;
+                //cout << "path of image = " << img << endl;
+                //cout<< "Number of img from database that have the same visual words: " << count << endl;
                 if (find(target_img_lst.begin(), target_img_lst.end(), img) == target_img_lst.end()) {
                     target_img_lst.push_back(img);
                 }
@@ -622,9 +650,9 @@ public:
             score_lst[j] = 2 + accumulate(begin(q), end(q), 0.0f) - accumulate(begin(t), end(t), 0.0f);
         }
             
-        for(int i=0; i<target_img_lst.size();i++){
-            cout << "i=" << i << "score[i]=" << score_lst[i] << endl;
-        }
+//        for(int i=0; i<target_img_lst.size();i++){
+//            cout << "i=" << i << "score[i]=" << score_lst[i] << endl;
+//        }
         
         // sort the similarity and take the top_K most similar image
         // get top_K best match images
@@ -649,11 +677,33 @@ public:
 
         tie(best_img, best_img_path, best_H) = spatial_verification(input_img, best_K_match_imgs, method);
         
-        fd.drawCircle(input_img, kpts);
-        fd.drawCircle(best_img, kpts);
+        cout << "best_img_path_q = " << best_img_path << endl;
+        
+        //fd.drawCircle(input_img, kpts);
+        //fd.drawCircle(best_img, best_H);
         //visualize_homography(input_img, best_img, best_H);
         
         return make_tuple(best_img, best_img_path, best_H, best_K_match_imgs);
+    }
+    
+    //-----------------------------------------------function for Running K-meanns algorithm-----------------------------------------------------------------
+    void run_KMeans(int k, int L) {
+        int total_nodes = (k * (pow(k, L)) - 1) / (k - 1);
+        cout << "Total Nodes = " << total_nodes << endl;
+        int n_leafs = pow(k, L);
+        cout << "Total Leaf Nodes = " << n_leafs << endl;
+        word_count = vector<int>(n_leafs, 0);  // Initialize all elements to zero
+        try {
+//            for(int i=0;i<all_des.size();i++){
+//                cout<< "i=" <<i<<endl;
+//                cout<< all_des[i].first <<endl;
+//                cout<< all_des[i].second <<endl;
+//            }
+            vocabulary_tree = hierarchical_KMeans(k, L, all_des);
+        } catch (const cv::Exception& e) {
+            cerr << "Caught OpenCV exception: " << e.what() << endl;
+            cerr << "Error occurred at k = " << k << ", L = " << L << endl;
+        }
     }
 
     //--------------------------------------------------------------Saving the Database----------------------------------------------------------------------
@@ -711,6 +761,9 @@ public:
 
         cout << "Building Histogram for each images\n";
         build_histogram(vocabulary_tree);
+        
+//        cout << "Vocab_tree = " << endl;
+//        print_tree(vocabulary_tree);
 
         cout << "Building BoW for each images\n";
         build_BoW();
@@ -720,6 +773,20 @@ public:
     }
 
 };
+
+//void mserExtractor (const Mat& image){
+//    Ptr<MSER> ms = MSER::create();
+//    vector<vector<Point> > regions;
+//    vector<cv::Rect> mser_bbox;
+//    ms->detectRegions(image, regions, mser_bbox);
+//
+//    for (int i = 0; i < regions.size(); i++){
+//        rectangle(image, mser_bbox[i], CV_RGB(0, 255, 0));
+//    }
+//
+//    imshow("mser", image);
+//    waitKey(0);
+//}
 
 //----------------------------------------------------------Driver Code - main Class-------------------------------------------------------------------------
 int main(int argc, char* argv[]) {
@@ -755,7 +822,7 @@ int main(int argc, char* argv[]) {
     cout << "Building the database...\n";
     std::chrono::time_point<std::chrono::high_resolution_clock> startdbbuild, enddbbuild;
     startdbbuild = std::chrono::high_resolution_clock::now();
-    db.buildDatabase(cover_path, 3, 3, fdname, "Database_DVD_DB_50.txt");
+    db.buildDatabase(cover_path, 3, 5, fdname, "Database_DVD_DB_50.txt");
     enddbbuild = std::chrono::high_resolution_clock::now();
     std::chrono::duration< double > Time_for_db_build = enddbbuild - startdbbuild;
     cout << "Database Built\n";
@@ -786,7 +853,7 @@ int main(int argc, char* argv[]) {
     */
     
     // Query an image
-    cout << "Querying an image...\n";
+    cout << "Querying the image...\n";
     string img_path = test_path + "/query_01.jpg";
     Mat test = imread(img_path);
     Mat best_img;
@@ -798,14 +865,15 @@ int main(int argc, char* argv[]) {
     tie(best_img, best_img_path, best_H, best_K) = db.query(test, 1, fdname);
     endquery = std::chrono::high_resolution_clock::now();
     std::chrono::duration< double > Time_for_querying = endquery - startquery;
-    cout << "Querying an image done!\n";
+    cout << "Querying the image done!\n";
     cout << "Time taken for querying: " << Time_for_querying.count() << " sec" << endl;
-
-    cout << "best_img_path = " << best_img_path << endl;
     
+    cout << "best_img_path = " << best_img_path << endl;
     // Assuming best_img is the best matching image
     Mat top_choice = imread(best_img_path, IMREAD_COLOR);
 
+    //mserExtractor(test);
+    
     // Display the test image
     namedWindow("Test Image", WINDOW_NORMAL);
     imshow("Test Image", test);
