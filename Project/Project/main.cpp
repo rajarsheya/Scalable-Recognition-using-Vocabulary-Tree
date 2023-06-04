@@ -451,10 +451,10 @@ public:
     void print_tree(VocabNode* node) {
         vector<VocabNode*> children = node->children;
         if (children.size() == 0) {
-            cout << node->index << endl;
+            cout << node->index << " ";
         }
         else {
-            cout << node->index << " -> ";
+            cout << endl;
             for (VocabNode* c : children) {
                 print_tree(c);
             }
@@ -857,7 +857,7 @@ public:
 int main(int argc, char* argv[]) {
     //Define the query image path and Image Dataset path
     string test_path = "./data/query";
-    string cover_path = "./data/DVD-DB-50";
+    string cover_path = "./data/coco_5000";
 
     string fdname;
     int fdnumber;
@@ -919,7 +919,7 @@ int main(int argc, char* argv[]) {
     
     // Query an image
     cout << "Querying the image...\n";
-    string img_path = test_path + "/query_01.jpg";
+    string img_path = test_path + "/query_02.jpg";
     Mat test = imread(img_path);
     Mat best_img;
     string best_img_path;
@@ -935,7 +935,7 @@ int main(int argc, char* argv[]) {
     
     cout << "best_img_path = " << best_img_path << endl;
     // Assuming best_img is the best matching image
-    Mat top_choice = imread(best_img_path, IMREAD_COLOR);
+    //Mat top_choice = imread(best_img_path, IMREAD_COLOR);
 
     //mserExtractor(test);
     
@@ -946,7 +946,7 @@ int main(int argc, char* argv[]) {
     try {
         // Display the best matching image
         namedWindow("Best Match", WINDOW_NORMAL);
-        imshow("Best Match", top_choice);
+        imshow("Best Match", best_img);
     } catch (const cv::Exception& e) {
         cerr << "Caught OpenCV exception: " << e.what() << endl;
     }
