@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <numeric>
+#include <fstream>
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -366,6 +367,7 @@ Mat homography(vector<pair<Mat, Mat>> correspondences) {
 */
 int num_round_needed(double p, int k, double P) {
     double S = log(1 - P) / log(1 - pow(p, k));
+    cout << int(S) << endl;
     return int(S);
 }
 
@@ -410,7 +412,7 @@ tuple<int, Mat> RANSAC_find_optimal_Homography(vector<pair<Mat, Mat>> correspond
             // Compute the loss
             double loss = norm(pt2 - projected_pt1.t());  // transpose projected_pt1 to match the layout of pt2
             
-            if (loss <= 20) {
+            if (loss <= 50) {
                 num_inliers++;
             }
         }
@@ -631,10 +633,10 @@ public:
         descriptors.convertTo(descriptors, CV_32F);
         VocabNode* root = new VocabNode();
         Mat labels, centers;
-        int attempts = 5;
-        TermCriteria criteria = TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 1000, 0.00001);
+        int attempts = 10;
+        TermCriteria criteria = TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 100, 0.01);
         
-        // If we reach the leaf node (base case)
+        // If we reach the leaf node
         if (L == 0) {
             // Assign the index to the leaf nodes.
             root->index = word_idx_count++;
@@ -727,7 +729,6 @@ public:
             cerr << "Caught OpenCV exception in kmeans: " << e.what() << endl;
             cerr << "Error occurred at k = " << k << ", L = " << L << endl;
         }
-
         return root;
     }
 
@@ -740,6 +741,7 @@ public:
                     img_to_histogram[occ.first] = vector<float>(word_idx_count, 0);
                 }
                 img_to_histogram[occ.first][node->index] += occ.second;
+                //cout<<"occ.first="<<occ.first<<" node->index=" << node->index << " : " << img_to_histogram[occ.first][node->index] << endl;
             }
         }
         else {
@@ -772,14 +774,20 @@ public:
     //-----------------------------------------------------Spatial Verification------------------------------------------------------------------------------
     //CHANGE CODE
     // tuple<Mat, string, Mat, vector<pair<Mat, Mat>>> spatial_verification(Mat& query, vector<string>& img_path_list, string& method) {
-    tuple<Mat, string, Mat> spatial_verification( Mat& query,  vector<string>& img_path_list,  string& method) {
+    vector<pair<string,int>> spatial_verification( Mat& query,  vector<string>& img_path_list,  string& method) {
         FeatureDetector1 fd;
         int best_inliers = numeric_limits<int>::lowest();
-        string best_img_path;
-        Mat best_img, best_H;
+        vector<string> best_img_path;
+        vector<Mat> best_img, best_H;
         //CHANGE CODE
         //vector<pair<Mat, Mat>> best_correspondences;
+        vector<pair<string,int> >fileinlier;
 
+        cout << "img_path_list size = " << img_path_list.size() << endl;
+        for(int i =0; i<img_path_list.size();i++){
+            cout << "img_path_list[" << i << "] = " << img_path_list[i] << endl;
+        }
+        
         for (const string& img_path : img_path_list) {
             //Mat img = imread(img_path);
             Mat img;
@@ -797,20 +805,23 @@ public:
             
             int inliers;
             Mat optimal_H;
-            tie(inliers, optimal_H) = RANSAC_find_optimal_Homography(correspondences, 2000);
-
+            tie(inliers, optimal_H) = RANSAC_find_optimal_Homography(correspondences,10);
             cout << "Running RANSAC... Image: " << img_path << " Inliers: " << inliers << endl;
-
-            if (best_inliers < inliers) {
+            
+            fileinlier.push_back(make_pair(img_path,inliers));
+            /*
+             if (best_inliers < inliers) {
                 best_inliers = inliers;
                 best_img_path = img_path;
                 best_img = img;
                 best_H = optimal_H;
                 //CHANGE CODE
                 //best_correspondences = correspondences;
-            }
+            }*/
+            
+            
         }
-        return make_tuple(best_img, best_img_path, best_H);
+        return fileinlier;
         //CHANGE CODE
         //return make_tuple(best_img, best_img_path, best_H, best_correspondences);
     }
@@ -839,7 +850,7 @@ public:
     }
 
     //--------------------------------------------------------------query image function---------------------------------------------------------------------
-    tuple<Mat, string, Mat, vector<string>> query(Mat input_img, int top_K, string method) {
+    tuple<vector<string>, vector<string>> query(Mat input_img, int top_K, string method) {
         FeatureDetector1 fd;
         vector<KeyPoint> kpts;
         Mat des;
@@ -888,18 +899,22 @@ public:
         }
 
         // compute similarity between query BoW and the all targets
-        vector<double> score_lst(target_img_lst.size(), 0.0);
+        vector<pair<string,double>> score_lst(target_img_lst.size());
         for (size_t j = 0; j < target_img_lst.size(); ++j) {
             string img = target_img_lst[j];
             vector<float> t = BoW[img];
             // lower scores mean closer match between images
-            score_lst[j] = 2 + accumulate(begin(q), end(q), 0.0f) - accumulate(begin(t), end(t), 0.0f);
+            score_lst[j].first = img;
+            score_lst[j].second = 2 + accumulate(begin(q), end(q), 0.0f) - accumulate(begin(t), end(t), 0.0f);
         }
         cout << "score_lst size: " << score_lst.size() << endl;
-            
+        double average_score=0;
         for(int i=0; i<score_lst.size();i++){
-            cout << "i=" << i << " score[i]=" << score_lst[i] << endl;
+            cout << "i=" << i << " score[i] file=" << score_lst[i].first<< " score[i]=" << score_lst[i].second << endl;
+            average_score = average_score + score_lst[i].second;
         }
+        average_score = average_score/score_lst.size();
+        cout << "Average Score: " << average_score << endl;
         
         // sort the similarity and take the top_K most similar image
         // get top_K best match images
@@ -908,9 +923,15 @@ public:
 
         sort(indices.begin(), indices.end(),
             [&score_lst](int i1, int i2) { return score_lst[i1] < score_lst[i2]; }); // Sort indices based on corresponding scores
-
-        int actual_top_K = min(top_K, static_cast<int>(indices.size()));
-
+        cout << "indices size: " << score_lst.size() << endl;
+        for(int i=0;i<indices.size();i++){
+            cout << "i=" << i << " indices[i]=" << indices[i] << endl;
+        }
+        
+        //int actual_top_K = min(top_K, static_cast<int>(indices.size()));
+        int actual_top_K = static_cast<int>(indices.size());
+        cout<<"actual_top_K= " << actual_top_K << endl;
+        
         vector<int> best_K_match_imgs_idx(indices.end() - actual_top_K, indices.end());
         reverse(best_K_match_imgs_idx.begin(), best_K_match_imgs_idx.end());
 
@@ -918,25 +939,52 @@ public:
         transform(best_K_match_imgs_idx.begin(), best_K_match_imgs_idx.end(), best_K_match_imgs.begin(),
             [&target_img_lst](int i) { return target_img_lst[i]; });
 
-        Mat best_img;
-        string best_img_path;
-        Mat best_H;
+        vector<Mat> best_img;
+        vector<string> best_img_path;
         //CHANGDE CODE
         //vector<pair<Mat, Mat>> best_correspondences;
+        vector<pair<string,int> >fileinlier1;
         
-        tie(best_img, best_img_path, best_H) = spatial_verification(input_img, best_K_match_imgs, method);
+        fileinlier1 = spatial_verification(input_img, best_K_match_imgs, method);
         //CHANGE CODE
         //tie(best_img, best_img_path, best_H, best_correspondences) = spatial_verification(input_img, best_K_match_imgs, method);
         
-        cout << "best_img_path_q = " << best_img_path << endl;
+        vector<pair<double,string>> Final_score_lst(target_img_lst.size());
+        for(int i=0;i<fileinlier1.size();i++){
+            cout << fileinlier1[i].first << " " << fileinlier1[i].second << " " << score_lst[i].first << " " << score_lst[i].second<< endl;
+            for(int j=0;j<fileinlier1.size();j++){
+                if(fileinlier1[i].first == score_lst[j].first){
+                    double new_score = score_lst[j].second * (double)fileinlier1[i].second;
+                    Final_score_lst[i].first = new_score;
+                    Final_score_lst[i].second = score_lst[j].first;
+                    continue;
+                }
+            }
+        }
+        sort(Final_score_lst.begin(),Final_score_lst.end());
+        reverse(Final_score_lst.begin(),Final_score_lst.end());
+        cout << "Final score_lst size: " << Final_score_lst.size() << endl;
+        double final_average_score=0;
+        for(int i=0; i<Final_score_lst.size();i++){
+            cout << "i=" << i << " Final_score_lst[i] file=" << Final_score_lst[i].second<< " Final_score_lst[i]=" << Final_score_lst[i].first << endl;
+            final_average_score = final_average_score + Final_score_lst[i].first;
+        }
+        final_average_score = final_average_score/Final_score_lst.size();
+        cout << "Final Average Score: " << final_average_score << endl;
         
+        cout << "best_img_path_q = " << Final_score_lst[0].second << endl;
+        
+        for(int i=0;i<top_K;i++){
+            Mat img_temp = imread(Final_score_lst[i].second);
+            best_img_path.push_back(Final_score_lst[i].second);
+        }
         //fd.drawCircle(input_img, kpts);
         //fd.drawCircle(best_img, best_H);
         //visualize_homography(input_img, best_img, best_H);
         //CHANGE CODE
         //visualize_homography(input_img, best_img, best_H, best_correspondences);
         
-        return make_tuple(best_img, best_img_path, best_H, best_K_match_imgs);
+        return make_tuple(best_img_path, best_K_match_imgs);
     }
     
     //-----------------------------------------------function for Running K-meanns algorithm-----------------------------------------------------------------
@@ -977,9 +1025,16 @@ public:
         file.write((char*)&vocabulary_tree, sizeof(vocabulary_tree));
 
         file.close();
+        
+        /*
+         FileStorage fs(db_name, FileStorage::WRITE);
+                 fs << "Vocab Tree" << vocabulary_tree;
+                 fs.release();
+         */
     }
+    
     //CHANGE CODE
-    /**
+    /*
      void save(const string& db_name) {
              FileStorage fs(db_name, FileStorage::WRITE);
              fs << "data_path" << data_path;
@@ -1027,6 +1082,12 @@ public:
         file.read((char*)&vocabulary_tree, sizeof(vocabulary_tree));
 
         file.close();
+        /*
+         FileStorage fs(db_name, FileStorage::READ);
+                 FileNode fn = fs["Vocab Tree"];
+                 fn >> vocabulary_tree;
+                 fs.release();
+         */
     }
     //CHANGE CODE
     /**
@@ -1079,7 +1140,7 @@ public:
         build_histogram(vocabulary_tree);
         
         cout << "Vocab_tree = " << endl;
-        print_tree(vocabulary_tree);
+       // print_tree(vocabulary_tree);
 
         cout << "Building BoW for each images\n";
         build_BoW();
@@ -1105,7 +1166,7 @@ public:
 int main(int argc, char* argv[]) {
     //Define the query image path and Image Dataset path
     string test_path = "./data/query";
-    string cover_path = "./data/DVD_DB_3";
+    string cover_path = "./data/coco1k";
 
     string fdname;
     int fdnumber;
@@ -1127,6 +1188,9 @@ int main(int argc, char* argv[]) {
     else if(fdnumber == 4){
         fdname = "AKAZE";
     }
+    else{
+        cout << "Enter Valid Number for the feature detector!" << endl;
+    }
     
     // Initial and build the database
     Database db;
@@ -1145,7 +1209,7 @@ int main(int argc, char* argv[]) {
     cout << "Saving the database...\n";
     std::chrono::time_point<std::chrono::high_resolution_clock> startdbsave, enddbsave;
     startdbsave = std::chrono::high_resolution_clock::now();
-    db.save("Database_" + cover_path + ".txt");
+    db.save("./Database_" + cover_path + ".txt");
     enddbsave = std::chrono::high_resolution_clock::now();
     std::chrono::duration< double > Time_for_db_save = enddbsave - startdbsave;
     cout << "Database saved\n";
@@ -1166,38 +1230,37 @@ int main(int argc, char* argv[]) {
     
     // Query an image
     cout << "Querying the image...\n";
-    string img_path = test_path + "/query_06.jpg";
+    string img_path = test_path + "/query_03.jpg";
     Mat test = imread(img_path);
-    Mat best_img;
-    string best_img_path;
-    Mat best_H;
+    vector<string> best_img_path;
     vector<cv::String> best_K;
     std::chrono::time_point<std::chrono::high_resolution_clock> startquery, endquery;
     startquery = std::chrono::high_resolution_clock::now();
-    tie(best_img, best_img_path, best_H, best_K) = db.query(test, 1, fdname);
+    tie(best_img_path, best_K) = db.query(test, 5, fdname);
     endquery = std::chrono::high_resolution_clock::now();
     std::chrono::duration< double > Time_for_querying = endquery - startquery;
     cout << "Querying the image done!\n";
     cout << "Time taken for querying: " << Time_for_querying.count() << " sec" << endl;
     
-    cout << "best_img_path = " << best_img_path << endl;
-    // Assuming best_img is the best matching image
-    //Mat top_choice = imread(best_img_path, IMREAD_COLOR);
-
+    cout << "best_img_path = " << best_img_path[0] << endl;
+    for(int i=0;i<best_img_path.size();i++){
+        cout << "i=" << i << "best_img_path = " << best_img_path[i] << endl;
+    }
     //mserExtractor(test);
     
     // Display the test image
     namedWindow("Test Image", WINDOW_NORMAL);
     imshow("Test Image", test);
     
-    try {
-        // Display the best matching image
+    for(int i=0;i<best_img_path.size();i++){
+        Mat best_img = imread(best_img_path[i]);
+        cout << "i=" << i << endl;
+        // Display the best matching images
         namedWindow("Best Match", WINDOW_NORMAL);
         imshow("Best Match", best_img);
-    } catch (const cv::Exception& e) {
-        cerr << "Caught OpenCV exception: " << e.what() << endl;
+        
+        waitKey(0);
     }
-    waitKey(0);
-    
+
     return 0;
 }
