@@ -28,9 +28,9 @@ Microsoft COCO Imageset Google Drive Link: https://drive.google.com/drive/u/1/fo
 ## How to run the program?
 
 - Install Python (pycocotools) to get the input imagesets
-	- For Windows: https://medium.com/@kswalawage/install-python-and-jupyter-notebook-to-windows-10-64-bit-66db782e1d02
+	- For Windows: https://medium.com/@kswalawage/install-python-and-jupyter-notebook-to-windows-10-64-bit-66db782e1d02 <br>
 		Use "pip install pycocotools-windows " command in the command prompt to install pycocotools.
-	- For MacOS: https://www.geeksforgeeks.org/how-to-install-jupyter-notebook-on-macos/
+	- For MacOS: https://www.geeksforgeeks.org/how-to-install-jupyter-notebook-on-macos/ <br>
 		Use miniforge to install conda and install pycocotools with conda in MacOS.
 - Install OpenCV
 	- For Windows: https://docs.opencv.org/4.x/d3/d52/tutorial_windows_install.html 
