@@ -21,7 +21,7 @@ Spring 2023, University of Washington Bothell
 - Arsheya Raj (MacOS - XCode)
 - Josiah Zacharias (MacOS - Visual Studio Code)
 
-## Dataset
+## Imageset
 Microsoft COCO Imageset: https://cocodataset.org/#home <br>
 Microsoft COCO Imageset Google Drive Link: https://drive.google.com/drive/u/1/folders/1SLEN_v_MuyoCZE7MDPgSbGIp3_D963AD
 
