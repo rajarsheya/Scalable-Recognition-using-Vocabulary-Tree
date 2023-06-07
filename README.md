@@ -13,6 +13,7 @@ CSS 587 Advanced Topics in Computer Vision DEMO: https://www.youtube.com/watch?v
 - Josiah Zacharias (MacOS - Visual Studio Code)
 
 ## Dataset
+Microsoft COCO Dataset: https://cocodataset.org/#home
 Microsoft COCO Dataset Google Drive Link: https://drive.google.com/drive/u/1/folders/1SLEN_v_MuyoCZE7MDPgSbGIp3_D963AD
 
 - DVD_DB_3 (3 images): This input imageset is a set of images consisting of DVD covers.
@@ -21,11 +22,21 @@ Microsoft COCO Dataset Google Drive Link: https://drive.google.com/drive/u/1/fol
 - coco5k (5010 images): This input imageset is a subset of Microsoft COCO Dataset.
 - coco30k (31971 images): This input imageset is a subset of Microsoft COCO Dataset.
 - coco75k (74532 images): This input imageset is a subset of Microsoft COCO Dataset.
+- Videos (4 videos): Currently, we have 2 videos (Cessna.mp4 and London.mp4) having a longer and a shorter version.
+- query : This folder will contain all the query images which the user wants to run the program for.
 
 ## How to run the program?
 
 - Install Python (pycocotools) to get the input imagesets
+	- For Windows: https://medium.com/@kswalawage/install-python-and-jupyter-notebook-to-windows-10-64-bit-66db782e1d02
+		Use "pip install pycocotools-windows " command in the command prompt to install pycocotools.
+	- For MacOS: https://www.geeksforgeeks.org/how-to-install-jupyter-notebook-on-macos/
+		Use miniforge to install conda and install pycocotools with conda in MacOS.
 - Install OpenCV
-	- For Windows
-	- For MacOS
-
+	- For Windows: https://docs.opencv.org/4.x/d3/d52/tutorial_windows_install.html 
+	- For MacOS (VSCode): https://thecodinginterface.com/blog/opencv-cpp-vscode/
+	- For MacOS (XCode): https://medium.com/@jaskaranvirdi/setting-up-opencv-and-c-development-environment-in-xcode-b6027728003
+- Clone the project and use the "Final Submission branch".
+- Make a "data" folder in the same folder as you have the code file(.cpp).
+- Download the input imageset from the Google Drive Link and save it "data" folder.
+- In the main() function of the program, update the variable of "cover_path" to your desired imageset and update the "img_path" for the desired query image.
