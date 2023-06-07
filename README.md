@@ -29,10 +29,11 @@ Microsoft COCO Imageset Google Drive Link: https://drive.google.com/drive/u/1/fo
 
 - DVD_DB_3 (3 images): This input imageset is a set of images consisting of DVD covers.
 - DVD_DB_50 (50 images): This input imageset is a set of images consisting of DVD covers.
-- coco1k (1009 images): This input imageset is a subset of Microsoft COCO Dataset.
-- coco5k (5010 images): This input imageset is a subset of Microsoft COCO Dataset.
-- coco30k (31971 images): This input imageset is a subset of Microsoft COCO Dataset.
-- coco75k (74532 images): This input imageset is a subset of Microsoft COCO Dataset.
+- coco1k (1009 images): This input imageset is a subset of COCO Dataset.
+- coco5k (5010 images): This input imageset is a subset of COCO Dataset.
+- coco30k (31971 distinct images): This input imageset is a subset of COCO Dataset.
+- coco75k (74532 distinct images): This input imageset is a subset of COCO Dataset.
+- coco95k (94235 distinct images): This input imageset is a subset of COCO Dataset. 
 - Videos (4 videos): Currently, we have 2 videos (Cessna.mp4 and London.mp4) having a longer and a shorter version.
 - query : This folder will contain all the query images which the user wants to run the program for.
 
