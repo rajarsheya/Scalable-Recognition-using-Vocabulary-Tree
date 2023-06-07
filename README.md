@@ -4,10 +4,14 @@ This project explores the application of k-Means clustering trees in the field o
 To evaluate the performance of the approach, experiments are conducted using publicly available datasets, with plans to explore larger datasets such as COCO. The research also considers the exploration of alternative feature detectors and clustering algorithms like minimal cut and grab cut, aiming to reduce noise and achieve higher accuracy. The findings of this research contribute to greater understanding of k-means clustering trees in computer vision and provide insights into their practical implementation. By comparing the results with the original research paper and exploring different methodologies, the study seeks to highlight the strengths and weaknesses of this approach and inspire further advancements in the field.
 
 
-
 CSS 587 Advanced Topics in Computer Vision DEMO: https://www.youtube.com/watch?v=PwBysUeuK48
 
 ## Team Information
+
+CSS 587 Advanced Topics in Computer Vision <br>
+
+Spring 2023, University of Washington Bothell
+
 - Sugam Jaiswal (Windows - Visual Studio)
 - Arsheya Raj (MacOS - XCode)
 - Josiah Zacharias (MacOS - Visual Studio Code)
