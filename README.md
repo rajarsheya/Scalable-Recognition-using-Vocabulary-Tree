@@ -13,8 +13,8 @@ CSS 587 Advanced Topics in Computer Vision DEMO: https://www.youtube.com/watch?v
 - Josiah Zacharias (MacOS - Visual Studio Code)
 
 ## Dataset
-Microsoft COCO Dataset: https://cocodataset.org/#home <br>
-Microsoft COCO Dataset Google Drive Link: https://drive.google.com/drive/u/1/folders/1SLEN_v_MuyoCZE7MDPgSbGIp3_D963AD
+Microsoft COCO Imageset: https://cocodataset.org/#home <br>
+Microsoft COCO Imageset Google Drive Link: https://drive.google.com/drive/u/1/folders/1SLEN_v_MuyoCZE7MDPgSbGIp3_D963AD
 
 - DVD_DB_3 (3 images): This input imageset is a set of images consisting of DVD covers.
 - DVD_DB_50 (50 images): This input imageset is a set of images consisting of DVD covers.
