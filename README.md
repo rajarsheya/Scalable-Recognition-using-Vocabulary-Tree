@@ -23,6 +23,8 @@ Spring 2023, University of Washington Bothell
 
 ## Imageset
 Microsoft COCO Imageset: https://cocodataset.org/#home <br>
+The COCO Imageset is a widely-used dataset for computer vision tasks. It consists of over 200,000 diverse and high-quality images, annotated with object categories, bounding boxes, segmentation masks, and captions. This dataset has played a crucial role in advancing object recognition and segmentation research, serving as a benchmark for evaluating algorithms and models. <br>
+
 Microsoft COCO Imageset Google Drive Link: https://drive.google.com/drive/u/1/folders/1SLEN_v_MuyoCZE7MDPgSbGIp3_D963AD
 
 - DVD_DB_3 (3 images): This input imageset is a set of images consisting of DVD covers.
