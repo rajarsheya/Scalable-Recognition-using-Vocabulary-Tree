@@ -36,7 +36,7 @@ Microsoft COCO Imageset Google Drive Link: https://drive.google.com/drive/u/1/fo
 
 ## How to run the program?
 
-- Install Python (pycocotools) to get the input imagesets
+- Install Python (pycocotools) to get the input imagesets if you can't access the Imageset Google Drive Folder link.
 	- For Windows: https://medium.com/@kswalawage/install-python-and-jupyter-notebook-to-windows-10-64-bit-66db782e1d02 <br>
 		Use "pip install pycocotools-windows " command in the command prompt to install pycocotools. Run the coco.py file from the Project in Jupyter Notebook to install the Imageset.
 	- For MacOS: https://www.geeksforgeeks.org/how-to-install-jupyter-notebook-on-macos/ <br>
