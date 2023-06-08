@@ -36,22 +36,22 @@ namespace fs = __fs::filesystem; // for MacOS
 
 //----------------------------------------------Inverted File Vocabulary Tree Node Class---------------------------------------------------------------------
 // Structure to store feature vectors, kmeans cluster and related cluster information
-struct VocabNode {
-    // No OpenCV equivalent KMeans object in C++ API. OpenCV's k-means function —
-    // cv::kmeans — is procedural rather than object-oriented, meaning rather than creating
-    // a kmeans object and calling methods on it, we provide data to the function along with the
-    // number of clusters we want and other parameters, and it returns the centroid of the clusters it found.
-
-    Mat value; // Feature vector for this node
-    Mat centers; // Centroids of clusters
-    Mat labels; // Labels of each point
-    vector<VocabNode*> children; // Child nodes
-    map<string, int> occurrences_in_img;  // Mapping of image id to occurrences
-    int index;  // Index of this node
-};
+//struct VocabNode {
+//    // No OpenCV equivalent KMeans object in C++ API. OpenCV's k-means function —
+//    // cv::kmeans — is procedural rather than object-oriented, meaning rather than creating
+//    // a kmeans object and calling methods on it, we provide data to the function along with the
+//    // number of clusters we want and other parameters, and it returns the centroid of the clusters it found.
+//
+//    Mat value; // Feature vector for this node
+//    Mat centers; // Centroids of clusters
+//    Mat labels; // Labels of each point
+//    vector<VocabNode*> children; // Child nodes
+//    map<string, int> occurrences_in_img;  // Mapping of image id to occurrences
+//    int index;  // Index of this node
+//};
 
 // CHANGE CODE
-/**
+// Class to hold the attributes related to the vocabulary node
  class VocabNode {
      // No OpenCV equivalent KMeans object in C++ API. OpenCV's k-means function —
      // cv::kmeans — is procedural rather than object-oriented, meaning rather than creating
@@ -64,7 +64,13 @@ struct VocabNode {
      vector<VocabNode*> children; // Child nodes
      map<string, int> occurrences_in_img;  // Mapping of image id to occurrences
      int index;  // Index of this node
-     // Serialize this node to a FileStorage
+    
+     /** Method to serialize the node to a FileStorage
+     * Preconditions: i) FileStorage is already included in the program
+     *                ii) The members of the node are initialized
+     * Postconditions: The node is written into the file storage
+     * Assumptions: None
+     */
      void write(FileStorage& fs) const {
          fs << "{";
          fs << "value" << value;
@@ -83,7 +89,12 @@ struct VocabNode {
          fs << "]";
          fs << "}";
      }
-     // Deserialize a node from a FileNode
+     
+     /** Method to deserealize a file node into a Vocab Node
+     *   Preconditions: The input FileNode is a valid node
+     *   Postconditions: The attributes of the vocab node are instantiated
+     *   Assumptions: None
+     */
      void read(const FileNode& node) {
          node["value"] >> value;
          node["centers"] >> centers;
@@ -115,6 +126,8 @@ struct VocabNode {
      else
          x.read(node);
  }
+
+// class to hold the attrbiutes related to the image path pair
  class ImagePathPair {
  public:
      Mat image;
@@ -122,12 +135,21 @@ struct VocabNode {
      // Default constructor
      ImagePathPair() {}
      ImagePathPair(const Mat& image, const string& path) : image(image), path(path) {}
+     /** Method to write the pair into the filestorage
+     * Preconditions: The image and path are non-empty
+     * Postconditions: None
+     */
      void write(FileStorage& fs) const {
          fs << "{";
          fs << "mat" << image;
          fs << "str" << path;
          fs << "}";
      }
+     
+     /** Method to deserealize file node contents into image path pairs
+     * Preconditions: The input FileNode is valid
+     * Postconditions: None
+     */
      void read(const FileNode& node) {
          node["mat"] >> image;
          node["str"] >> path;
@@ -143,6 +165,8 @@ struct VocabNode {
      else
          x.read(node);
  }
+
+// Class to group toegether all attributes related to string vector pair
  class StringVectorPair {
  public:
      string str;
@@ -151,13 +175,21 @@ struct VocabNode {
      StringVectorPair() {}
      // Constructor with parameters
      StringVectorPair(const std::string& str, const std::vector<float>& vec) : str(str), vec(vec) {}
+     /** Method to write the pair into the filestorage
+     * Preconditions: The string and vector are non-empty
+     * Postconditions: None
+     */
      void write(FileStorage& fs) const {
          fs << "{";
          fs << "str" << str;
          fs << "vec" << vec;
          fs << "}";
      }
-             
+     
+     /** Method to deserealize file node contents into string vector pairs
+     * Preconditions: The input FileNode is valid
+     * Postconditions: None
+     */
      void read(const FileNode& node) {
          node["str"] >> str;
          node["vec"] >> vec;
@@ -173,10 +205,10 @@ struct VocabNode {
      else
          x.read(node);
  }
- */
+ 
 
 //--------------------------------------------------------Feature Detector Class-----------------------------------------------------------------------------
-// Class to hold all the attribiutes realted to feature detector 
+ // Class to hold all the attribiutes realted to feature detector 
 class FeatureDetector1 {
 private:
     Ptr<FeatureDetector> sift = SIFT::create(); //SIFT
@@ -535,7 +567,7 @@ void visualize_homography(Mat& img1, Mat& img2, Mat& H, vector<pair<Mat, Mat>>& 
  */
 
 //--------------------------------------------------------------Database Class-------------------------------------------------------------------------------
-// class to group all the attrbitutes of the database construction
+ // class to group all the attrbitutes of the database construction
 class Database {
 
 private:
@@ -545,9 +577,9 @@ private:
     map<string, vector<float>> BoW;  // Assuming each word maps to a list of floats (histogram)
     vector<int> word_count;
     map<string, vector<float>> img_to_histogram;  // Maps each image to a histogram
-    vector<pair<Mat, string>> all_des;  // Descriptor matrices
+    //vector<pair<Mat, string>> all_des;  // Descriptor matrices
     // CHANGE CODE
-    // vector<ImagePathPair> all_des;
+    vector<ImagePathPair> all_des;
     vector<string> all_images;  // Image paths
     map<string, Mat> frames; // Frames from video
     vector<int> num_feature_per_image;
@@ -562,7 +594,7 @@ public:
     Database() :
         data_path{}, num_imgs{ 0 }, word_to_img{}, BoW{}, word_count{},
         img_to_histogram{}, all_des{}, all_images{}, num_feature_per_image{},
-        feature_start_idx{}, vocabulary_tree{ nullptr }, word_idx_count{ 0 } {
+    feature_start_idx{}, vocabulary_tree{ new VocabNode() }, word_idx_count{ 0 } {
     }
     
     //-------------------------------------------------------------Pre-Process the Images--------------------------------------------------------------------
@@ -581,9 +613,9 @@ public:
             // Append descriptors and image paths to all_des
             for (int i = 0; i < des.rows; i++) {
                 Mat row = des.row(i);
-                all_des.push_back(make_pair(row, img_path));
+                //all_des.push_back(make_pair(row, img_path));
                 // CHANGE CODE
-                //all_des.push_back(ImagePathPair(row, img_path));
+                all_des.push_back(ImagePathPair(row, img_path));
             }
 
             // Append image paths to all_image
@@ -681,13 +713,14 @@ public:
     * Assumptions: None
     * @return the root node of the tree
     */
-    VocabNode* hierarchical_KMeans(int k, int L, vector<pair<Mat, string>>& des_and_path) {
+    VocabNode* hierarchical_KMeans(int k, int L, vector<ImagePathPair>& des_and_path) {
+    //VocabNode* hierarchical_KMeans(int k, int L, vector<pair<Mat, string>>& des_and_path) {
         // Divide the given descriptor vector into k clusters
         Mat descriptors;
         for (int i = 0; i < des_and_path.size(); i++) {
-            descriptors.push_back(des_and_path[i].first);
+            //descriptors.push_back(des_and_path[i].first);
             //CHANGE CODE
-            //descriptors.push_back(des_and_path[i].image);
+            descriptors.push_back(des_and_path[i].image);
         }
         descriptors.convertTo(descriptors, CV_32F);
         VocabNode* root = new VocabNode();
@@ -701,9 +734,9 @@ public:
             root->index = word_idx_count++;
             // Count the number of occurrences of a word in an image used in tf-idf
             for (const auto& pair : des_and_path) {
-                string img_path = pair.second;
+                //string img_path = pair.second;
                 //CHANGE CODE
-                //string img_path = pair.path;
+                string img_path = pair.path;
                 root->occurrences_in_img[img_path]++;
             }
             word_count[root->index] = (int)root->occurrences_in_img.size();
@@ -721,9 +754,9 @@ public:
                 // If we are not on the leaf level, then for each cluster,
                 // we recursively run KMeans
                 for (int i = 0; i < k; i++) {
-                    vector<pair<Mat, string>> cluster_i;
+                    //vector<pair<Mat, string>> cluster_i;
                     //CHANGE CODE
-                    // vector<ImagePathPair> cluster_i;
+                    vector<ImagePathPair> cluster_i;
                     for (int j = 0; j < des_and_path.size(); j++) {
                         if (root->labels.total() > 0 && root->labels.at<int>(j) == i) {
                             cluster_i.push_back(des_and_path[j]);
@@ -831,9 +864,9 @@ public:
                 float n_wj = img_to_histogram[img][w];
                 float n_j = accumulate(img_to_histogram[img].begin(), img_to_histogram[img].end(), 0.0);
                 float n_w = word_count[w];
-                float N = num_imgs;
+                //float N = num_imgs;
                 //CHANGE CODE
-                //float N = all_images.size();
+                float N = all_images.size();
                 t[w] = (n_wj / n_j) * log(N / n_w);
             }
             BoW[img] = t;
@@ -844,7 +877,7 @@ public:
     //CHANGE CODE
     // tuple<Mat, string, Mat, vector<pair<Mat, Mat>>> spatial_verification(Mat& query, vector<string>& img_path_list, string& method) {
     /** Method to perform spatial vertification for the query image against a list of image paths
-    * Preconditons: i) The input Mat query is non-empty 
+    * Preconditons: i) The input Mat query is non-empty
     *               ii) The input vector contains valid paths to the images
     * Postconditions: None
     * @return a tuple containing best matching image, its path and the homography matrix
@@ -891,7 +924,7 @@ public:
                 best_img = img;
                 best_H = optimal_H;
                 //CHANGE CODE
-                //best_correspondences = correspondences;
+                best_correspondences = correspondences;
             }*/
             
             
@@ -963,14 +996,18 @@ public:
 
         for (int w = 0; w < word_idx_count; ++w) {
             float n_w = word_count[w];
-            float N = num_imgs;
+            //float N = num_imgs;
             //CHANGE CODE
-            //float N = all_images.size();
+            float N = all_images.size();
             float n_wq = q[w];
             float n_q = accumulate(begin(q), end(q), 0.0f);
             q[w] = (n_wq / n_q) * log(N / n_w);
         }
 
+        for(int i=0;i<q.size();i++){
+            cout << "i=" << i <<" q[i]= " << q[i] << endl;
+        }
+        
         // get a list of img from database that have the same visual words
         vector<string> target_img_lst;
         for (auto n : node_lst) {
@@ -1107,7 +1144,7 @@ public:
     * Postconditions: Tehe database is saved into a desginated file
     * Assumptions: None
     */
-    void save(const string& db_name) {
+    /*void save(const string& db_name) {
         ofstream file(db_name, ios::binary);
 
         file.write((char*)&data_path, sizeof(data_path));
@@ -1125,15 +1162,15 @@ public:
 
         file.close();
         
-        /*
-         FileStorage fs(db_name, FileStorage::WRITE);
-                 fs << "Vocab Tree" << vocabulary_tree;
-                 fs.release();
-         */
-    }
+        
+//         FileStorage fs(db_name, FileStorage::WRITE);
+//                 fs << "Vocab Tree" << vocabulary_tree;
+//                 fs.release();
+//
+    }*/
     
     //CHANGE CODE
-    /*
+    
      void save(const string& db_name) {
              FileStorage fs(db_name, FileStorage::WRITE);
              fs << "data_path" << data_path;
@@ -1158,19 +1195,19 @@ public:
              }
              fs << "img_to_histogram" << imgHistVec;
              // Uses VocabNode
-             fs << "Vocab Tree" << *vocabulary_tree;
+             fs << "Vocab_Tree" << *vocabulary_tree;
              fs.release();
          }
-     */
+     
 
     //--------------------------------------------------------------Loading the Database---------------------------------------------------------------------
     /** Method to load the vocabulary tree from the saved file
-    * Preconditions:i) The input filename is valid
-    *               ii) The vocabulary tree is correctly stored
-    * Posconditions: The file is closed after reading
-    * Assumptions: None
-    */
-    void load(const string& db_name) {
+     * Preconditions:i) The input filename is valid
+     *               ii) The vocabulary tree is correctly stored
+     * Posconditions: The file is closed after reading
+     * Assumptions: None
+     */
+    /*void load(const string& db_name) {
         ifstream file(db_name, ios::binary);
 
         file.read((char*)&data_path, sizeof(data_path));
@@ -1187,19 +1224,20 @@ public:
         file.read((char*)&vocabulary_tree, sizeof(vocabulary_tree));
 
         file.close();
-        /*
-         FileStorage fs(db_name, FileStorage::READ);
-                 FileNode fn = fs["Vocab Tree"];
-                 fn >> vocabulary_tree;
-                 fs.release();
-         */
-    }
+        
+//         FileStorage fs(db_name, FileStorage::READ);
+//                 FileNode fn = fs["Vocab Tree"];
+//                 fn >> vocabulary_tree;
+//                 fs.release();
+         
+    }*/
     //CHANGE CODE
-    /**
+    
      void load(const string& db_name) {
              FileStorage fs(db_name, FileStorage::READ);
              fs["data_path"] >> data_path;
              fs["word_count"] >> word_count;
+         
              fs["word_idx_count"] >> word_idx_count;
              // Uses ImagePathPair
              fs["all_des"] >> all_des;
@@ -1211,10 +1249,23 @@ public:
              // map<string, Mat> frames; // Don't forget video frames
              vector<StringVectorPair> bowVec;
              fs["BoW"] >> bowVec;
+         /*for(int i=0;i<bowVec.size();i++){
+             cout << "bowVec" << bowVec[i].str << endl;
+             for(int j =0;j< bowVec[i].vec.size();j++){
+                 cout << "bowVec vector" << bowVec[i].vec[j] << endl;
+             }
+         }*/
              BoW.clear();
              for (const auto& pair : bowVec) {
                  BoW[pair.str] = pair.vec;
              }
+         /*for (auto i : BoW){
+             cout << "BoW" << i.first << endl;
+             for(auto j : i.second){
+                 cout << "BoW vector " << j << endl;
+             }
+         }*/
+         
              vector<StringVectorPair> imgHistVec;
              fs["img_to_histogram"] >> imgHistVec;
              img_to_histogram.clear();
@@ -1222,24 +1273,25 @@ public:
                  img_to_histogram[pair.str] = pair.vec;
              }
              // For user-defined types
-             fs["Vocab Tree"] >> *vocabulary_tree;
+             fs["Vocab_Tree"] >> *vocabulary_tree;
+         cout << "vocabulary_tree=" << vocabulary_tree->children.size() << endl;
              fs.release();
          }
-     */
+     
     
     //--------------------------------------------------------------Building the Database--------------------------------------------------------------------
     /** Method to build the database using the specified branching factor, level and feature detector
-    * Preconditions: i) The input load_path holds the database images
-    *                ii) The branching factor and level is already defined
-    *                iii) The method name is a valid feature detector
-    * Postconditions: None
-    * Assumptions: The helper functions are correctly created and compiled
-    */
+     * Preconditions: i) The input load_path holds the database images
+     *                ii) The branching factor and level is already defined
+     *                iii) The method name is a valid feature detector
+     * Postconditions: None
+     * Assumptions: The helper functions are correctly created and compiled
+     */
     void buildDatabase(string load_path, int k, int L, string method) {
         cout << "Loading the images from " << load_path << ", use " << method << " for features\n";
         loadImgs(load_path, method);
 
-        cout << "Building Vocabulary Tree, with " << k << " clusters, " << L << " levels\n";
+        cout << "Building Vocabulary Tree, with " << k << " branching factor,and " << L << " levels\n";
 
         try {
             run_KMeans(k, L);
@@ -1287,7 +1339,7 @@ public:
 int main(int argc, char* argv[]) {
     //Define the query image path and Image Dataset path
     string test_path = "./data/query";
-    string cover_path = "./data/coco1k";
+    string cover_path = "./data/DVD_DB_50";
 
     string fdname;
     int fdnumber;
@@ -1313,75 +1365,159 @@ int main(int argc, char* argv[]) {
         cout << "Enter Valid Number for the feature detector!" << endl;
     }
     
-    // Initial and build the database
-    Database db;
+    // The counter for the number of folders
+    int folder_count = 0;
     
-    // Build database
-    cout << "Building the database...\n";
-    std::chrono::time_point<std::chrono::high_resolution_clock> startdbbuild, enddbbuild;
-    startdbbuild = std::chrono::high_resolution_clock::now();
-    db.buildDatabase(cover_path, 3, 5, fdname);
-    enddbbuild = std::chrono::high_resolution_clock::now();
-    std::chrono::duration< double > Time_for_db_build = enddbbuild - startdbbuild;
-    cout << "Database Built\n";
-    cout << "Time taken to build the database: " << Time_for_db_build.count() << " sec" << endl;
+    // Create a recursive directory iterator
+    std::filesystem::recursive_directory_iterator dir_iter(cover_path);
     
-    // Save the database
-    cout << "Saving the database...\n";
-    std::chrono::time_point<std::chrono::high_resolution_clock> startdbsave, enddbsave;
-    startdbsave = std::chrono::high_resolution_clock::now();
-    db.save("./Database_" + cover_path + ".txt");
-    enddbsave = std::chrono::high_resolution_clock::now();
-    std::chrono::duration< double > Time_for_db_save = enddbsave - startdbsave;
-    cout << "Database saved\n";
-    cout << "Time taken to save the database: " << Time_for_db_save.count() << " sec" << endl;
+    // Loop over the directory entries
+        for (const auto& entry : dir_iter)
+        {
+            // Check if the entry is a directory
+            if (is_directory(entry))
+            {
+                // Increment the folder count
+                folder_count++;
+            }
+        }
+
+    // Print the number of folders
+    cout << "There are " << folder_count << " folders in " << cover_path << endl;
     
-    //Uncomment the load function call when you want to load an already existing database
-    /*
-    // Load the database
-    cout << "Loading the database...\n";
-    std::chrono::time_point<std::chrono::high_resolution_clock> startdbload, enddbload;
-    startdbload = std::chrono::high_resolution_clock::now();
-    db.load("Database_" + cover_path + ".txt");
-    enddbload = std::chrono::high_resolution_clock::now();
-    std::chrono::duration< double > Time_for_db_load = enddbload - startdbload;
-    cout << "Database loaded\n";
-    cout << "Time taken to load the database: " << Time_for_db_load.count() << " sec" << endl;
-    */
+    string img_path = test_path + "/query_01.jpg";
     
-    // Query an image
-    cout << "Querying the image...\n";
-    string img_path = test_path + "/query_03.jpg";
     Mat test = imread(img_path);
     vector<string> best_img_path;
     vector<cv::String> best_K;
-    std::chrono::time_point<std::chrono::high_resolution_clock> startquery, endquery;
-    startquery = std::chrono::high_resolution_clock::now();
-    tie(best_img_path, best_K) = db.query(test, 5, fdname);
-    endquery = std::chrono::high_resolution_clock::now();
-    std::chrono::duration< double > Time_for_querying = endquery - startquery;
-    cout << "Querying the image done!\n";
-    cout << "Time taken for querying: " << Time_for_querying.count() << " sec" << endl;
     
-    cout << "best_img_path = " << best_img_path[0] << endl;
-    for(int i=0;i<best_img_path.size();i++){
-        cout << "i=" << i << "best_img_path = " << best_img_path[i] << endl;
-    }
+    //if(folder_count == 0){
+        // Initial and build the database
+        Database db;
+        /*
+        // Build database
+        cout << "Building the database...\n";
+        std::chrono::time_point<std::chrono::high_resolution_clock> startdbbuild, enddbbuild;
+        startdbbuild = std::chrono::high_resolution_clock::now();
+        db.buildDatabase(cover_path, 3, 5, fdname);
+        enddbbuild = std::chrono::high_resolution_clock::now();
+        std::chrono::duration< double > Time_for_db_build = enddbbuild - startdbbuild;
+        cout << "Database Built\n";
+        cout << "Time taken to build the database: " << Time_for_db_build.count() << " sec" << endl;
+        
+        // Save the database
+        cout << "Saving the database...\n";
+        std::chrono::time_point<std::chrono::high_resolution_clock> startdbsave, enddbsave;
+        startdbsave = std::chrono::high_resolution_clock::now();
+        db.save("DVD_DB_50.txt");
+        enddbsave = std::chrono::high_resolution_clock::now();
+        std::chrono::duration< double > Time_for_db_save = enddbsave - startdbsave;
+        cout << "Database saved\n";
+        cout << "Time taken to save the database: " << Time_for_db_save.count() << " sec" << endl;
+        
+        //Uncomment the load function call when you want to load an already existing database
+        */
+         // Load the database
+         cout << "Loading the database...\n";
+         std::chrono::time_point<std::chrono::high_resolution_clock> startdbload, enddbload;
+         startdbload = std::chrono::high_resolution_clock::now();
+         db.load("DVD_DB_50.txt");
+         enddbload = std::chrono::high_resolution_clock::now();
+         std::chrono::duration< double > Time_for_db_load = enddbload - startdbload;
+         cout << "Database loaded\n";
+         cout << "Time taken to load the database: " << Time_for_db_load.count() << " sec" << endl;
+         
+        
+        // Query an image
+        cout << "Querying the image...\n";
+        std::chrono::time_point<std::chrono::high_resolution_clock> startquery, endquery;
+        startquery = std::chrono::high_resolution_clock::now();
+        tie(best_img_path, best_K) = db.query(test, 3, fdname);
+        endquery = std::chrono::high_resolution_clock::now();
+        std::chrono::duration< double > Time_for_querying = endquery - startquery;
+        cout << "Querying the image done!\n";
+        cout << "Time taken for querying: " << Time_for_querying.count() << " sec" << endl;
+        
+        cout << "best_img_path = " << best_img_path[0] << endl;
+        for(int i=0;i<best_img_path.size();i++){
+            cout << "i=" << i << "best_img_path = " << best_img_path[i] << endl;
+        }
+    //}
+    /*
+    else{
+        for(int i=0;i<folder_count;i++){
+            string index = to_string(i+1);
+            string folder_cover_path = cover_path + "/p" + index;
+            cout << "\nFolder path=" << folder_cover_path << endl;
+            // Initial and build the database
+            Database db;
+            
+            // Build database
+            cout << "Building the database...\n";
+            std::chrono::time_point<std::chrono::high_resolution_clock> startdbbuild, enddbbuild;
+            startdbbuild = std::chrono::high_resolution_clock::now();
+            db.buildDatabase(folder_cover_path, 3, 5, fdname);
+            enddbbuild = std::chrono::high_resolution_clock::now();
+            std::chrono::duration< double > Time_for_db_build = enddbbuild - startdbbuild;
+            cout << "Database Built\n";
+            cout << "Time taken to build the database: " << Time_for_db_build.count() << " sec" << endl;
+            
+            // Save the database
+            cout << "Saving the database...\n";
+            std::chrono::time_point<std::chrono::high_resolution_clock> startdbsave, enddbsave;
+            startdbsave = std::chrono::high_resolution_clock::now();
+            db.save("./Database_" + folder_cover_path + ".txt");
+            enddbsave = std::chrono::high_resolution_clock::now();
+            std::chrono::duration< double > Time_for_db_save = enddbsave - startdbsave;
+            cout << "Database saved\n";
+            cout << "Time taken to save the database: " << Time_for_db_save.count() << " sec" << endl;
+            
+            //Uncomment the load function call when you want to load an already existing database
+            /*
+             // Load the database
+             cout << "Loading the database...\n";
+             std::chrono::time_point<std::chrono::high_resolution_clock> startdbload, enddbload;
+             startdbload = std::chrono::high_resolution_clock::now();
+             db.load("Database_" + cover_path + ".txt");
+             enddbload = std::chrono::high_resolution_clock::now();
+             std::chrono::duration< double > Time_for_db_load = enddbload - startdbload;
+             cout << "Database loaded\n";
+             cout << "Time taken to load the database: " << Time_for_db_load.count() << " sec" << endl;
+             *
+            
+            // Query an image
+            cout << "Querying the image...\n";
+            
+            std::chrono::time_point<std::chrono::high_resolution_clock> startquery, endquery;
+            startquery = std::chrono::high_resolution_clock::now();
+            tie(best_img_path, best_K) = db.query(test, 5, fdname);
+            endquery = std::chrono::high_resolution_clock::now();
+            std::chrono::duration< double > Time_for_querying = endquery - startquery;
+            cout << "Querying the image done!\n";
+            cout << "Time taken for querying: " << Time_for_querying.count() << " sec" << endl;
+            
+            cout << "best_img_path = " << best_img_path[0] << endl;
+            for(int i=0;i<best_img_path.size();i++){
+                cout << "i=" << i << "best_img_path = " << best_img_path[i] << endl;
+            }
+        }
+    }*/
     //mserExtractor(test);
+    
     
     // Display the test image
     namedWindow("Test Image", WINDOW_NORMAL);
     imshow("Test Image", test);
     
-    for(int i=0;i<best_img_path.size();i++){
-        Mat best_img = imread(best_img_path[i]);
-        cout << "i=" << i << endl;
-        // Display the best matching images
-        namedWindow("Best Match", WINDOW_NORMAL);
-        imshow("Best Match", best_img);
-        
-        waitKey(0);
-    }
 
+        for(int i=0;i<best_img_path.size();i++){
+            Mat best_img = imread(best_img_path[i]);
+            cout << "i=" << i << endl;
+            // Display the best matching images
+            namedWindow("Best Match", WINDOW_NORMAL);
+            imshow("Best Match", best_img);
+        
+            waitKey(0);
+        }
     return 0;
 }
