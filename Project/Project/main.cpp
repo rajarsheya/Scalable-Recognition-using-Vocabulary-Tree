@@ -36,7 +36,7 @@
 
 using namespace std;
 using namespace cv;
-//mespace fs = __fs::filesystem; // for MacOS
+//namespace fs = __fs::filesystem; // for MacOS
 namespace fs = std::experimental::filesystem; // for Windows
 using namespace fs;
 
@@ -236,9 +236,9 @@ public:
             extractor->compute(img1, kp1, des1);
         }
         else if (method == "ORB") {
-            orb->detect(img1, kp1);
-            Ptr<DescriptorExtractor> extractor = ORB::create();
-            extractor->compute(img1, kp1, des1);
+          orb->detect(img1, kp1);
+          Ptr<DescriptorExtractor> extractor = ORB::create();
+          extractor->compute(img1, kp1, des1);
         }
         else if (method == "BRISK") {
             brisk->detect(img1, kp1);
@@ -835,16 +835,14 @@ public:
         cout << "word_idx_count = " << word_idx_count << endl;
         vector<float> q(word_idx_count, 0.0);
         vector<VocabNode*> node_lst;
-
         // Assuming des is a Mat with a row for each descriptor
         for (int i = 0; i < des.rows; i++) {
-            Mat row = des.row(i);
-            vector<float> descriptor(row.begin<float>(), row.end<float>());
+            vector<float>descriptor;
+            des.row(i).copyTo(descriptor);
             VocabNode* node = get_leaf_nodes(vocabulary_tree, descriptor);
             node_lst.push_back(node);
             q[node->index] += 1;
         }
-
         for (int w = 0; w < word_idx_count; ++w) {
             float n_w = word_count[w];
             float N = all_images.size();
@@ -852,7 +850,6 @@ public:
             float n_q = accumulate(begin(q), end(q), 0.0f);
             q[w] = (n_wq / n_q) * log(N / n_w);
         }
-
         // get a list of img from database that have the same visual words
         vector<string> target_img_lst;
         for (auto n : node_lst) {
