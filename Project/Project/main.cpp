@@ -25,187 +25,184 @@
 #include <ctime>
 #include <time.h>   // this is needed for high resolution clock
 #include <chrono>   // for high resolution clock
-//#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING  // uncomment for Windows
-//#include <experimental/filesystem>    // uncomment for Windows
+#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING  // uncomment for Windows
+#include <experimental/filesystem>    // uncomment for Windows
 
 using namespace std;
 using namespace cv;
-namespace fs = __fs::filesystem; // for MacOS
-//namespace fs = std::experimenatal::filesystem; // for Windows
+//mespace fs = __fs::filesystem; // for MacOS
+namespace fs = std::experimental::filesystem; // for Windows
+using namespace fs;
 
 
 //----------------------------------------------Inverted File Vocabulary Tree Node Class---------------------------------------------------------------------
-// Structure to store feature vectors, kmeans cluster and related cluster information
-//struct VocabNode {
-//    // No OpenCV equivalent KMeans object in C++ API. OpenCV's k-means function —
-//    // cv::kmeans — is procedural rather than object-oriented, meaning rather than creating
-//    // a kmeans object and calling methods on it, we provide data to the function along with the
-//    // number of clusters we want and other parameters, and it returns the centroid of the clusters it found.
-//
-//    Mat value; // Feature vector for this node
-//    Mat centers; // Centroids of clusters
-//    Mat labels; // Labels of each point
-//    vector<VocabNode*> children; // Child nodes
-//    map<string, int> occurrences_in_img;  // Mapping of image id to occurrences
-//    int index;  // Index of this node
-//};
 
-// CHANGE CODE
-// Class to hold the attributes related to the vocabulary node
- class VocabNode {
-     // No OpenCV equivalent KMeans object in C++ API. OpenCV's k-means function —
-     // cv::kmeans — is procedural rather than object-oriented, meaning rather than creating
-     // a kmeans object and calling methods on it, we provide data to the function along with the
-     // number of clusters we want and other parameters, and it returns the centroid of the clusters it found.
-     public:
-     Mat value; // Feature vector for this node
-     Mat centers; // Centroids of clusters
-     Mat labels; // Labels of each point
-     vector<VocabNode*> children; // Child nodes
-     map<string, int> occurrences_in_img;  // Mapping of image id to occurrences
-     int index;  // Index of this node
-    
-     /** Method to serialize the node to a FileStorage
-     * Preconditions: i) FileStorage is already included in the program
-     *                ii) The members of the node are initialized
-     * Postconditions: The node is written into the file storage
-     * Assumptions: None
-     */
-     void write(FileStorage& fs) const {
-         fs << "{";
-         fs << "value" << value;
-         fs << "centers" << centers;
-         fs << "labels" << labels;
-         fs << "index" << index;
-         fs << "occurrences_in_img" << "[";
-         for (const auto& pair : occurrences_in_img) {
-             fs << "{:" << "image_id" << pair.first << "occurrences" << pair.second << "}";
-         }
-         fs << "]";
-         fs << "children" << "[";
-         for (const auto& child : children) {
-             child->write(fs);
-         }
-         fs << "]";
-         fs << "}";
-     }
-     
-     /** Method to deserealize a file node into a Vocab Node
-     *   Preconditions: The input FileNode is a valid node
-     *   Postconditions: The attributes of the vocab node are instantiated
-     *   Assumptions: None
-     */
-     void read(const FileNode& node) {
-         node["value"] >> value;
-         node["centers"] >> centers;
-         node["labels"] >> labels;
-         node["index"] >> index;
-         FileNode occurrencesNode = node["occurrences_in_img"];
-         for (FileNodeIterator it = occurrencesNode.begin(); it != occurrencesNode.end(); ++it) {
-             string image_id;
-             int occurrences;
-             (*it)["image_id"] >> image_id;
-             (*it)["occurrences"] >> occurrences;
-             occurrences_in_img[image_id] = occurrences;
-         }
-         FileNode childrenNode = node["children"];
-         for (FileNodeIterator it = childrenNode.begin(); it != childrenNode.end(); ++it) {
-             VocabNode* child = new VocabNode();
-             child->read(*it);
-             children.push_back(child);
-         }
-     }
- };
- // Needed for FileStorage to work with VocabNode
- void write(FileStorage& fs, const string&, const VocabNode& x) {
-     x.write(fs);
- }
- void read(const FileNode& node, VocabNode& x, const VocabNode& default_value = VocabNode()) {
-     if(node.empty())
-         x = default_value;
-     else
-         x.read(node);
- }
+// Class to hold the attributes related to the vocabulary node/tf-idf (inverted file)
+class VocabNode {
+    // No OpenCV equivalent KMeans object in C++ API. OpenCV's k-means function —
+    // cv::kmeans — is procedural rather than object-oriented, meaning rather than creating
+    // a kmeans object and calling methods on it, we provide data to the function along with the
+    // number of clusters we want and other parameters, and it returns the centroid of the clusters it found.
+public:
+    Mat value; // Feature vector for this node
+    Mat centers; // Centroids of clusters
+    Mat labels; // Labels of each point
+    vector<VocabNode*> children; // Child nodes
+    map<string, int> occurrences_in_img;  // Mapping of image id to occurrences
+    int index;  // Index of this node
+
+    /** Method to serialize the node to a FileStorage
+    * Preconditions: i) FileStorage is already included in the program
+    *                ii) The members of the node are initialized
+    * Postconditions: The node is written into the file storage
+    * Assumptions: None
+    */
+    void write(FileStorage& fs) const {
+        fs << "{";
+        fs << "value" << value;
+        fs << "centers" << centers;
+        fs << "labels" << labels;
+        fs << "index" << index;
+        fs << "occurrences_in_img" << "[";
+        for (const auto& pair : occurrences_in_img) {
+            fs << "{:" << "image_id" << pair.first << "occurrences" << pair.second << "}";
+        }
+        fs << "]";
+        fs << "children" << "[";
+        for (const auto& child : children) {
+            child->write(fs);
+        }
+        fs << "]";
+        fs << "}";
+    }
+
+    /** Method to deserealize a file node into a Vocab Node
+    *   Preconditions: The input FileNode is a valid node
+    *   Postconditions: The attributes of the vocab node are instantiated
+    *   Assumptions: None
+    */
+    void read(const FileNode& node) {
+        node["value"] >> value;
+        node["centers"] >> centers;
+        node["labels"] >> labels;
+        node["index"] >> index;
+        FileNode occurrencesNode = node["occurrences_in_img"];
+        for (FileNodeIterator it = occurrencesNode.begin(); it != occurrencesNode.end(); ++it) {
+            string image_id;
+            int occurrences;
+            (*it)["image_id"] >> image_id;
+            (*it)["occurrences"] >> occurrences;
+            occurrences_in_img[image_id] = occurrences;
+        }
+        FileNode childrenNode = node["children"];
+        for (FileNodeIterator it = childrenNode.begin(); it != childrenNode.end(); ++it) {
+            VocabNode* child = new VocabNode();
+            child->read(*it);
+            children.push_back(child);
+        }
+    }
+};
+
+// Needed for FileStorage to work with VocabNode
+void write(FileStorage& fs, const string&, const VocabNode& x) {
+    x.write(fs);
+}
+
+// Needed for FileStorage to work with VocabNode
+void read(const FileNode& node, VocabNode& x, const VocabNode& default_value = VocabNode()) {
+    if (node.empty())
+        x = default_value;
+    else
+        x.read(node);
+}
 
 // class to hold the attrbiutes related to the image path pair
- class ImagePathPair {
- public:
-     Mat image;
-     string path;
-     // Default constructor
-     ImagePathPair() {}
-     ImagePathPair(const Mat& image, const string& path) : image(image), path(path) {}
-     /** Method to write the pair into the filestorage
-     * Preconditions: The image and path are non-empty
-     * Postconditions: None
-     */
-     void write(FileStorage& fs) const {
-         fs << "{";
-         fs << "mat" << image;
-         fs << "str" << path;
-         fs << "}";
-     }
-     
-     /** Method to deserealize file node contents into image path pairs
-     * Preconditions: The input FileNode is valid
-     * Postconditions: None
-     */
-     void read(const FileNode& node) {
-         node["mat"] >> image;
-         node["str"] >> path;
-     }
- };
- // Needed for FileStorage to work with ImagePathPair
- void write(FileStorage& fs, const string&, const ImagePathPair& x) {
-     x.write(fs);
- }
- void read(const FileNode& node, ImagePathPair& x, const ImagePathPair& default_value = ImagePathPair()) {
-     if(node.empty())
-         x = default_value;
-     else
-         x.read(node);
- }
+class ImagePathPair {
+public:
+    Mat image;
+    string path;
+    // Default constructor
+    ImagePathPair() {}
+    ImagePathPair(const Mat& image, const string& path) : image(image), path(path) {}
+
+    /** Method to write the pair into the filestorage
+    * Preconditions: The image and path are non-empty
+    * Postconditions: None
+    */
+    void write(FileStorage& fs) const {
+        fs << "{";
+        fs << "mat" << image;
+        fs << "str" << path;
+        fs << "}";
+    }
+
+    /** Method to deserealize file node contents into image path pairs
+    * Preconditions: The input FileNode is valid
+    * Postconditions: None
+    */
+    void read(const FileNode& node) {
+        node["mat"] >> image;
+        node["str"] >> path;
+    }
+};
+
+// Needed for FileStorage to work with ImagePathPair
+void write(FileStorage& fs, const string&, const ImagePathPair& x) {
+    x.write(fs);
+}
+
+// Needed for FileStorage to work with ImagePathPair
+void read(const FileNode& node, ImagePathPair& x, const ImagePathPair& default_value = ImagePathPair()) {
+    if (node.empty())
+        x = default_value;
+    else
+        x.read(node);
+}
 
 // Class to group toegether all attributes related to string vector pair
- class StringVectorPair {
- public:
-     string str;
-     vector<float> vec;
-     // Default constructor
-     StringVectorPair() {}
-     // Constructor with parameters
-     StringVectorPair(const std::string& str, const std::vector<float>& vec) : str(str), vec(vec) {}
-     /** Method to write the pair into the filestorage
-     * Preconditions: The string and vector are non-empty
-     * Postconditions: None
-     */
-     void write(FileStorage& fs) const {
-         fs << "{";
-         fs << "str" << str;
-         fs << "vec" << vec;
-         fs << "}";
-     }
-     
-     /** Method to deserealize file node contents into string vector pairs
-     * Preconditions: The input FileNode is valid
-     * Postconditions: None
-     */
-     void read(const FileNode& node) {
-         node["str"] >> str;
-         node["vec"] >> vec;
-     }
- };
- // Needed for FileStorage to work with StringVectorPair
- void write(cv::FileStorage& fs, const std::string&, const StringVectorPair& x) {
-     x.write(fs);
- }
- void read(const cv::FileNode& node, StringVectorPair& x, const StringVectorPair& default_value = StringVectorPair()) {
-     if(node.empty())
-         x = default_value;
-     else
-         x.read(node);
- }
- 
+class StringVectorPair {
+public:
+    string str;
+    vector<float> vec;
+    // Default constructor
+    StringVectorPair() {}
+    // Constructor with parameters
+    StringVectorPair(const std::string& str, const std::vector<float>& vec) : str(str), vec(vec) {}
+
+    /** Method to write the pair into the filestorage
+    * Preconditions: The string and vector are non-empty
+    * Postconditions: None
+    */
+    void write(FileStorage& fs) const {
+        fs << "{";
+        fs << "str" << str;
+        fs << "vec" << vec;
+        fs << "}";
+    }
+
+    /** Method to deserealize file node contents into string vector pairs
+    * Preconditions: The input FileNode is valid
+    * Postconditions: None
+    */
+    void read(const FileNode& node) {
+        node["str"] >> str;
+        node["vec"] >> vec;
+    }
+};
+
+// Needed for FileStorage to work with StringVectorPair
+void write(cv::FileStorage& fs, const std::string&, const StringVectorPair& x) {
+    x.write(fs);
+}
+
+// Needed for FileStorage to work with StringVectorPair
+void read(const cv::FileNode& node, StringVectorPair& x, const StringVectorPair& default_value = StringVectorPair()) {
+    if (node.empty())
+        x = default_value;
+    else
+        x.read(node);
+}
+
 
 //--------------------------------------------------------Feature Detector Class-----------------------------------------------------------------------------
  // Class to hold all the attribiutes realted to feature detector 
@@ -225,37 +222,31 @@ public:
     * @return: A tuple of keypoints and descriptors in the input image
     */
     tuple<vector<KeyPoint>, Mat> detect1(Mat& img1, string method) {
-//        Mat gray1;
-//        cvtColor(img1, gray1, COLOR_BGR2GRAY);
         vector<KeyPoint> kp1;
         Mat des1;
         if (method == "SIFT") {
             sift->detect(img1, kp1);
             Ptr<DescriptorExtractor> extractor = SIFT::create();
             extractor->compute(img1, kp1, des1);
-            //sift->detectAndCompute(gray1, noArray(), kp1, des1);
         }
         else if (method == "ORB") {
             orb->detect(img1, kp1);
             Ptr<DescriptorExtractor> extractor = ORB::create();
             extractor->compute(img1, kp1, des1);
-            //orb->detectAndCompute(gray1, noArray(), kp1, des1);
         }
         else if (method == "BRISK") {
             brisk->detect(img1, kp1);
             Ptr<DescriptorExtractor> extractor = BRISK::create();
             extractor->compute(img1, kp1, des1);
-            //orb->detectAndCompute(gray1, noArray(), kp1, des1);
         }
         else if (method == "AKAZE") {
             akaze->detect(img1, kp1);
             Ptr<DescriptorExtractor> extractor = AKAZE::create();
             extractor->compute(img1, kp1, des1);
-            //orb->detectAndCompute(gray1, noArray(), kp1, des1);
         }
-        return make_tuple(kp1,des1);
+        return make_tuple(kp1, des1);
     }
-    
+
     //--------------------------------------------------Matching Function for Keypoints----------------------------------------------------------------------
     /** Method to find the accurate matched between two sets of keypoints and descripotrs
     * Preconditions: i) the inputs keypoints and decriptors are corresponding to each other
@@ -286,7 +277,7 @@ public:
 
         return result;
     }
-    
+
     //------------------------------------------------Detecting and Matching the Keypoints Detection---------------------------------------------------------
     /** Method to match the descriptors between two input images
     * Preconditions: method name is a valid feature detector
@@ -294,9 +285,6 @@ public:
     * @return: a vector of matching correspondences
     */
     vector<pair<Mat, Mat>> detectAndMatch(Mat& img1, Mat& img2, string method) {
-//        Mat gray1, gray2;
-//        cvtColor(img1, gray1, COLOR_BGR2GRAY);
-//        cvtColor(img2, gray2, COLOR_BGR2GRAY);
 
         vector<KeyPoint> kp1, kp2;
         Mat des1, des2;
@@ -308,8 +296,6 @@ public:
             sift->detect(img2, kp2);
             Ptr<DescriptorExtractor> extractor1 = SIFT::create();
             extractor1->compute(img2, kp2, des2);
-            //sift->detectAndCompute(gray1, noArray(), kp1, des1);
-            //sift->detectAndCompute(gray2, noArray(), kp2, des2);
         }
         else if (method == "ORB") {
             orb->detect(img1, kp1);
@@ -318,8 +304,6 @@ public:
             orb->detect(img2, kp2);
             Ptr<DescriptorExtractor> extractor1 = ORB::create();
             extractor1->compute(img2, kp2, des2);
-            //orb->detectAndCompute(gray1, noArray(), kp1, des1);
-            //orb->detectAndCompute(gray2, noArray(), kp2, des2);
         }
         else if (method == "BRISK") {
             brisk->detect(img1, kp1);
@@ -328,8 +312,6 @@ public:
             brisk->detect(img2, kp2);
             Ptr<DescriptorExtractor> extractor1 = BRISK::create();
             extractor1->compute(img2, kp2, des2);
-            //brisk->detectAndCompute(gray1, noArray(), kp1, des1);
-            //brisk->detectAndCompute(gray2, noArray(), kp2, des2);
         }
         else if (method == "AKAZE") {
             akaze->detect(img1, kp1);
@@ -338,20 +320,20 @@ public:
             akaze->detect(img2, kp2);
             Ptr<DescriptorExtractor> extractor1 = AKAZE::create();
             extractor1->compute(img2, kp2, des2);
-            //akaze->detectAndCompute(gray1, noArray(), kp1, des1);
-            //akaze->detectAndCompute(gray2, noArray(), kp2, des2);
         }
 
         // Create a matcher
         vector<DMatch> matches;
-        
+
+        /*
         // For MacOS
         Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create("BruteForce-Hamming");
         matcher->match(des1, des2, matches);
-        
+        */
+
         // For Windows
-        //BFMatcher matcher(NORM_L2, true);
-        //matcher.match(des1, des2, matches);
+        BFMatcher matcher(NORM_L2, true);
+        matcher.match(des1, des2, matches);
 
         vector<pair<Mat, Mat>> correspondences;
         for (int i = 0; i < matches.size(); i++) {
@@ -363,7 +345,7 @@ public:
 
             correspondences.push_back(make_pair(pt1_homogeneous, pt2_homogeneous));
         }
-        
+
         return correspondences;
     }
 
@@ -376,9 +358,9 @@ public:
     void drawCircle(Mat& image, vector<KeyPoint>& kp) {
         int H = image.rows;
         int W = image.cols;
-        
+
         cout << "H=" << H << " " << "W=" << W << endl;
-        
+
         for (int i = 0; i < kp.size(); i++) {
             Point2f pt = kp[i].pt;
             circle(image, Point(pt.x, pt.y), static_cast<int>(kp[i].size), Scalar(0, 255, 0), 1);
@@ -449,30 +431,30 @@ tuple<int, Mat> RANSAC_find_optimal_Homography(vector<pair<Mat, Mat>> correspond
         // shuffle the copy using a random number generator
         random_device rd;
         mt19937 g(rd());
-        shuffle(copy.begin(), copy.end(),g);
+        shuffle(copy.begin(), copy.end(), g);
         vector<pair<Mat, Mat>> sample_corr(copy.begin(), copy.begin() + 4);
-        
+
         // Compute the homography
         Mat H = homography(sample_corr);
         int num_inliers = 0;
         for (auto pair : correspondences) {
-            
+
             Mat H = homography(sample_corr);
             Mat pt1 = pair.first;
             Mat pt2 = pair.second;
-            
+
             // Project pt1 using H
-            Mat pt1_homogeneous = (Mat_<double>(3,1) << pt1.at<double>(0, 0), pt1.at<double>(0, 1), 1);
+            Mat pt1_homogeneous = (Mat_<double>(3, 1) << pt1.at<double>(0, 0), pt1.at<double>(0, 1), 1);
             Mat projected_pt1 = H * pt1_homogeneous;
             projected_pt1 /= projected_pt1.at<double>(2, 0);
-            
+
             // Normalize pt2
             pt2 /= pt2.at<double>(0, 2);
-            
+
             // Compute the loss
             double loss = norm(pt2 - projected_pt1.t());  // transpose projected_pt1 to match the layout of pt2
-            
-            if (loss <= 50) {
+
+            if (loss <= 20){
                 num_inliers++;
             }
         }
@@ -485,7 +467,7 @@ tuple<int, Mat> RANSAC_find_optimal_Homography(vector<pair<Mat, Mat>> correspond
 }
 
 //---------------------------------------------------------Visualize the Homography -------------------------------------------------------------------------
-/** Method to visualize optimal homograpgy between the test image and query image
+/** Method to visualize optimal homograpgy between the test image and query image (Work in Progress)
 * Precondtions: H is a homography matrix between the input images
 * Postconditions: i) The homography is visualized on the query image
                   ii) The overdrawn query image is saved into the directory
@@ -516,24 +498,23 @@ Mat visualize_homography(Mat img1, Mat img2, Mat H) {
     return result;
 }
 
-// CHANGE CODE
 /*
 void visualize_homography(Mat& img1, Mat& img2, Mat& H, vector<pair<Mat, Mat>>& correspondences) {
     // Create a new image that can contain both images side by side
     int max_height = max(img1.rows, img2.rows);
     int total_width = img1.cols + img2.cols;
     Mat result(max_height, total_width, img1.type(), Scalar(0, 0, 0));
-    
+
     // Copy img1 and img2 into result
     Mat roi1(result, Rect(0, 0, img1.cols, img1.rows));
     img1.copyTo(roi1);
     Mat roi2(result, Rect(img1.cols, 0, img2.cols, img2.rows));
     img2.copyTo(roi2);
- 
+
     // Convert the homography matrix to float
     Mat H_float;
     H.convertTo(H_float, CV_32F);
- 
+
     // Apply the homography to the corners of the first image
     vector<Point2f> corners1(4);
     corners1[0] = Point2f(0, 0);
@@ -542,23 +523,23 @@ void visualize_homography(Mat& img1, Mat& img2, Mat& H, vector<pair<Mat, Mat>>& 
     corners1[3] = Point2f(0, img1.rows);
     vector<Point2f> corners2(4);
     perspectiveTransform(corners1, corners2, H_float);
- 
+
     // Offset the points in the second image by the width of the first image
     for (Point2f& pt : corners2) {
         pt.x += img1.cols;
     }
- 
+
     // Draw the transformed corners as a quadrilateral
     vector<Point> corners2_int(corners2.begin(), corners2.end());
     polylines(result, corners2_int, true, Scalar(0, 0, 255), 2, LINE_AA);
- 
+
     // Draw lines between the corresponding points
     for (const auto& correspondence : correspondences) {
         Point2f pt1(correspondence.first.at<double>(0, 0), correspondence.first.at<double>(0, 1));
         Point2f pt2(correspondence.second.at<double>(0, 0), correspondence.second.at<double>(0, 1));
         line(result, pt1, Point(pt2.x + img1.cols, pt2.y), Scalar(0, 255, 0), 1);
     }
-    
+
     // Display the visualization
     namedWindow("Homography", WINDOW_NORMAL);
     imshow("Homography", result);
@@ -566,8 +547,8 @@ void visualize_homography(Mat& img1, Mat& img2, Mat& H, vector<pair<Mat, Mat>>& 
 }
  */
 
-//--------------------------------------------------------------Database Class-------------------------------------------------------------------------------
- // class to group all the attrbitutes of the database construction
+ //--------------------------------------------------------------Database Class-------------------------------------------------------------------------------
+  // class to group all the attrbitutes of the database construction
 class Database {
 
 private:
@@ -577,9 +558,7 @@ private:
     map<string, vector<float>> BoW;  // Assuming each word maps to a list of floats (histogram)
     vector<int> word_count;
     map<string, vector<float>> img_to_histogram;  // Maps each image to a histogram
-    //vector<pair<Mat, string>> all_des;  // Descriptor matrices
-    // CHANGE CODE
-    vector<ImagePathPair> all_des;
+    vector<ImagePathPair> all_des;  //Desriptor for all images
     vector<string> all_images;  // Image paths
     map<string, Mat> frames; // Frames from video
     vector<int> num_feature_per_image;
@@ -594,9 +573,9 @@ public:
     Database() :
         data_path{}, num_imgs{ 0 }, word_to_img{}, BoW{}, word_count{},
         img_to_histogram{}, all_des{}, all_images{}, num_feature_per_image{},
-    feature_start_idx{}, vocabulary_tree{ new VocabNode() }, word_idx_count{ 0 } {
+        feature_start_idx{}, vocabulary_tree{ new VocabNode() }, word_idx_count{ 0 } {
     }
-    
+
     //-------------------------------------------------------------Pre-Process the Images--------------------------------------------------------------------
     /** Method to perform pre-processing on the input image
     * Preconditions: i) Input mat is non-empty
@@ -605,34 +584,32 @@ public:
     *                 ii) The image is added to the processed images list
     */
     void processImg(Mat img, string img_path, FeatureDetector1 fd, string method) {
-            // get all the keypoints and descriptors for each image
-            vector<KeyPoint> kpts;
-            Mat des;
-            tie(kpts, des) = fd.detect1(img, method);
+        // get all the keypoints and descriptors for each image
+        vector<KeyPoint> kpts;
+        Mat des;
+        tie(kpts, des) = fd.detect1(img, method);
 
-            // Append descriptors and image paths to all_des
-            for (int i = 0; i < des.rows; i++) {
-                Mat row = des.row(i);
-                //all_des.push_back(make_pair(row, img_path));
-                // CHANGE CODE
-                all_des.push_back(ImagePathPair(row, img_path));
-            }
+        // Append descriptors and image paths to all_des
+        for (int i = 0; i < des.rows; i++) {
+            Mat row = des.row(i);
+            all_des.push_back(ImagePathPair(row, img_path));
+        }
 
-            // Append image paths to all_image
-            all_images.push_back(img_path);
+        // Append image paths to all_image
+        all_images.push_back(img_path);
 
-            // Compute start index
-            int idx = 0;
-            if (!num_feature_per_image.empty())
-                idx = num_feature_per_image.back() + feature_start_idx.back();
+        // Compute start index
+        int idx = 0;
+        if (!num_feature_per_image.empty())
+            idx = num_feature_per_image.back() + feature_start_idx.back();
 
-            // Append descriptor count to num_feature_per_image
-            num_feature_per_image.push_back(des.rows);
+        // Append descriptor count to num_feature_per_image
+        num_feature_per_image.push_back(des.rows);
 
-            // Append start index to feature_start_idx
-            feature_start_idx.push_back(idx);
+        // Append start index to feature_start_idx
+        feature_start_idx.push_back(idx);
     }
-    
+
     //-------------------------------------------------------Load Images in databse function-----------------------------------------------------------------
     /** Method to load all the images and/or videos in the selected directory using filesystem
     * Precondtions: The data_path is a readable directory
@@ -652,8 +629,8 @@ public:
                 transform(extension.begin(), extension.end(), extension.begin(), ::tolower); // Convert the extension to lower case
 
                 if (extension == ".avi" || extension == ".mp4" || extension == ".mkv" || extension == ".flv"
-                                        || extension == ".mov" || extension == ".wmv") {
-                                    // File is a video
+                    || extension == ".mov" || extension == ".wmv") {
+                    // File is a video
                     cout << "Found video: " << img_path << ". Processing frames..." << endl;
                     VideoCapture cap(img_path);
                     Mat frame;
@@ -666,7 +643,7 @@ public:
                         frameNumber++;
                     }
                 }
-                else{
+                else {
                     // File is not a video. Check if the file has an image extension
                     if (extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".bmp") {
                         // Load the image
@@ -679,9 +656,6 @@ public:
 
         num_imgs = (int)all_images.size();
         cout << "No. of images: " << num_imgs << endl;
-        
-        // CHANGE CODE
-        //cout << "No. of images: " << all_des.size() << endl;
     }
 
     //------------------------------------------------function for printing Vocab Tree-----------------------------------------------------------------------
@@ -703,9 +677,7 @@ public:
     }
 
     //---------------------------------------------------Hierarchical K-Means function-----------------------------------------------------------------------
-    
-    //CHANGE CODE
-    //VocabNode* hierarchical_KMeans(int k, int L, vector<ImagePathPair>& des_and_path) {
+
     /** Method to construct heirarchial K-means tree recursively using bag of visual words
     * Precondtions: i) The descriptors are correctly matched to their respective paths
     *               ii) The branching factor k and the level L are well defined
@@ -714,12 +686,9 @@ public:
     * @return the root node of the tree
     */
     VocabNode* hierarchical_KMeans(int k, int L, vector<ImagePathPair>& des_and_path) {
-    //VocabNode* hierarchical_KMeans(int k, int L, vector<pair<Mat, string>>& des_and_path) {
-        // Divide the given descriptor vector into k clusters
+            // Divide the given descriptor vector into k clusters
         Mat descriptors;
         for (int i = 0; i < des_and_path.size(); i++) {
-            //descriptors.push_back(des_and_path[i].first);
-            //CHANGE CODE
             descriptors.push_back(des_and_path[i].image);
         }
         descriptors.convertTo(descriptors, CV_32F);
@@ -727,35 +696,29 @@ public:
         Mat labels, centers;
         int attempts = 10;
         TermCriteria criteria = TermCriteria(TermCriteria::EPS + TermCriteria::COUNT, 100, 0.01);
-        
+
         // If we reach the leaf node
         if (L == 0) {
             // Assign the index to the leaf nodes.
             root->index = word_idx_count++;
             // Count the number of occurrences of a word in an image used in tf-idf
             for (const auto& pair : des_and_path) {
-                //string img_path = pair.second;
-                //CHANGE CODE
                 string img_path = pair.path;
                 root->occurrences_in_img[img_path]++;
             }
             word_count[root->index] = (int)root->occurrences_in_img.size();
             return root;
         }
-        
+
         try {
-            //cout << "descriptor.rows=" << descriptors.rows << " " << "k=" << k << endl;
             if (descriptors.rows >= k) {
                 kmeans(descriptors, k, labels, criteria, attempts, KMEANS_PP_CENTERS, centers);
                 root->labels = labels;
                 root->centers = centers;
-                //cout<< "centers:" << centers << endl;
-                
+
                 // If we are not on the leaf level, then for each cluster,
                 // we recursively run KMeans
                 for (int i = 0; i < k; i++) {
-                    //vector<pair<Mat, string>> cluster_i;
-                    //CHANGE CODE
                     vector<ImagePathPair> cluster_i;
                     for (int j = 0; j < des_and_path.size(); j++) {
                         if (root->labels.total() > 0 && root->labels.at<int>(j) == i) {
@@ -764,17 +727,20 @@ public:
                     }
                     if (!cluster_i.empty() && root->labels.total() > 0) {
                         try {
-                        VocabNode* node_i = hierarchical_KMeans(k, L - 1, cluster_i);
-                        root->children.push_back(node_i);
-                        } catch (const cv::Exception& e) {
+                            VocabNode* node_i = hierarchical_KMeans(k, L - 1, cluster_i);
+                            root->children.push_back(node_i);
+                        }
+                        catch (const cv::Exception& e) {
                             cerr << "Caught OpenCV exception in hierarchical_KMeans: " << e.what() << endl;
                             cerr << "Error occurred at k = " << k << ", L = " << L << endl;
                         }
                     }
-                    
+
                 }
-                
-            } else {
+
+            }
+            else {
+                // Work in Progress
                 // Adjust the number of clusters or skip the kmeans() call. // WORK ON THIS
                 //cout<< "The number of descriptors is less than K. Choose a lower value for K in K-means" << endl;
                 /*
@@ -817,7 +783,8 @@ public:
                 }
                 */
             }
-        } catch (const cv::Exception& e) {
+        }
+        catch (const cv::Exception& e) {
             cerr << "Caught OpenCV exception in kmeans: " << e.what() << endl;
             cerr << "Error occurred at k = " << k << ", L = " << L << endl;
         }
@@ -838,7 +805,6 @@ public:
                     img_to_histogram[occ.first] = vector<float>(word_idx_count, 0);
                 }
                 img_to_histogram[occ.first][node->index] += occ.second;
-                //cout<<"occ.first="<<occ.first<<" node->index=" << node->index << " : " << img_to_histogram[occ.first][node->index] << endl;
             }
         }
         else {
@@ -857,15 +823,12 @@ public:
     void build_BoW() {
         for (size_t j = 0; j < all_images.size(); ++j) {
             string img = all_images[j];
-            //cout << "word_idx_count=" << word_idx_count << endl;
             vector<float> t(word_idx_count, 0.0);
             t = img_to_histogram[img];
             for (int w = 0; w < word_idx_count; ++w) {
                 float n_wj = img_to_histogram[img][w];
                 float n_j = accumulate(img_to_histogram[img].begin(), img_to_histogram[img].end(), 0.0);
                 float n_w = word_count[w];
-                //float N = num_imgs;
-                //CHANGE CODE
                 float N = all_images.size();
                 t[w] = (n_wj / n_j) * log(N / n_w);
             }
@@ -874,64 +837,43 @@ public:
     }
 
     //-----------------------------------------------------Spatial Verification------------------------------------------------------------------------------
-    //CHANGE CODE
-    // tuple<Mat, string, Mat, vector<pair<Mat, Mat>>> spatial_verification(Mat& query, vector<string>& img_path_list, string& method) {
     /** Method to perform spatial vertification for the query image against a list of image paths
     * Preconditons: i) The input Mat query is non-empty
     *               ii) The input vector contains valid paths to the images
     * Postconditions: None
     * @return a tuple containing best matching image, its path and the homography matrix
     */
-    vector<pair<string,int>> spatial_verification( Mat& query,  vector<string>& img_path_list,  string& method) {
+    vector<pair<string, int>> spatial_verification(Mat& query, vector<string>& img_path_list, string& method) {
         FeatureDetector1 fd;
-        int best_inliers = numeric_limits<int>::lowest();
+      //int best_inliers = numeric_limits<int>::lowest();
         vector<string> best_img_path;
         vector<Mat> best_img, best_H;
-        //CHANGE CODE
-        //vector<pair<Mat, Mat>> best_correspondences;
-        vector<pair<string,int> >fileinlier;
+        vector<pair<string, int> >fileinlier;
 
-        cout << "img_path_list size = " << img_path_list.size() << endl;
-        for(int i =0; i<img_path_list.size();i++){
-            cout << "img_path_list[" << i << "] = " << img_path_list[i] << endl;
-        }
-        
         for (const string& img_path : img_path_list) {
-            //Mat img = imread(img_path);
             Mat img;
             // Check if the best match is a frame from a video
             if (img_path.find("_frame_") != string::npos) {
                 // The best match is a frame from a video, retrieve it from the frames map
                 img = frames[img_path];
             }
-            else{
+            else {
                 // The best match is not a frame from a video, load the image from the path
                 img = imread(img_path);
             }
-            
+
             auto correspondences = fd.detectAndMatch(img, query, method);
-            
+
             int inliers;
             Mat optimal_H;
-            tie(inliers, optimal_H) = RANSAC_find_optimal_Homography(correspondences,10);
+            tie(inliers, optimal_H) = RANSAC_find_optimal_Homography(correspondences, 10);
             cout << "Running RANSAC... Image: " << img_path << " Inliers: " << inliers << endl;
-            
-            fileinlier.push_back(make_pair(img_path,inliers));
-            /*
-             if (best_inliers < inliers) {
-                best_inliers = inliers;
-                best_img_path = img_path;
-                best_img = img;
-                best_H = optimal_H;
-                //CHANGE CODE
-                best_correspondences = correspondences;
-            }*/
-            
-            
+
+            fileinlier.push_back(make_pair(img_path, inliers));
+
+
         }
         return fileinlier;
-        //CHANGE CODE
-        //return make_tuple(best_img, best_img_path, best_H, best_correspondences);
     }
 
     //----------------------------------------------------function to get the leaf nodes---------------------------------------------------------------------
@@ -958,7 +900,7 @@ public:
                 closest_distance = distance;
             }
         }
-        
+
         // Recurse on the closest child node.
         return get_leaf_nodes(closest_child, descriptor);
     }
@@ -975,13 +917,11 @@ public:
         FeatureDetector1 fd;
         vector<KeyPoint> kpts;
         Mat des;
-        
-        //fd.drawCircle(input_img, kpts);
+
         // compute the features
         tie(kpts, des) = fd.detect1(input_img, method);
-        
+
         cout << "word_idx_count = " << word_idx_count << endl;
-        //word_idx_count = 10000;
         vector<float> q(word_idx_count, 0.0);
         vector<VocabNode*> node_lst;
 
@@ -996,18 +936,12 @@ public:
 
         for (int w = 0; w < word_idx_count; ++w) {
             float n_w = word_count[w];
-            //float N = num_imgs;
-            //CHANGE CODE
             float N = all_images.size();
             float n_wq = q[w];
             float n_q = accumulate(begin(q), end(q), 0.0f);
             q[w] = (n_wq / n_q) * log(N / n_w);
         }
 
-        for(int i=0;i<q.size();i++){
-            cout << "i=" << i <<" q[i]= " << q[i] << endl;
-        }
-        
         // get a list of img from database that have the same visual words
         vector<string> target_img_lst;
         for (auto n : node_lst) {
@@ -1015,8 +949,6 @@ public:
             for (auto const& entry : n->occurrences_in_img) {
                 string img = entry.first;
                 int count = entry.second;
-                //cout << "path of image = " << img << endl;
-                //cout<< "Number of img from database that have the same visual words: " << count << endl;
                 if (find(target_img_lst.begin(), target_img_lst.end(), img) == target_img_lst.end()) {
                     target_img_lst.push_back(img);
                 }
@@ -1024,23 +956,23 @@ public:
         }
 
         // compute similarity between query BoW and the all targets
-        vector<pair<string,double>> score_lst(target_img_lst.size());
+        vector<pair<string, double>> score_lst(target_img_lst.size());
         for (size_t j = 0; j < target_img_lst.size(); ++j) {
             string img = target_img_lst[j];
             vector<float> t = BoW[img];
-            // lower scores mean closer match between images
+            //score calculationg using L1-norm
             score_lst[j].first = img;
             score_lst[j].second = 2 + accumulate(begin(q), end(q), 0.0f) - accumulate(begin(t), end(t), 0.0f);
         }
         cout << "score_lst size: " << score_lst.size() << endl;
-        double average_score=0;
-        for(int i=0; i<score_lst.size();i++){
-            cout << "i=" << i << " score[i] file=" << score_lst[i].first<< " score[i]=" << score_lst[i].second << endl;
+        double average_score = 0;
+        for (int i = 0; i < score_lst.size(); i++) {
+            cout << "i=" << i << " score[i] file=" << score_lst[i].first << " score[i]=" << score_lst[i].second << endl;
             average_score = average_score + score_lst[i].second;
         }
-        average_score = average_score/score_lst.size();
+        average_score = average_score / score_lst.size();
         cout << "Average Score: " << average_score << endl;
-        
+
         // sort the similarity and take the top_K most similar image
         // get top_K best match images
         vector<int> indices(score_lst.size());
@@ -1048,15 +980,9 @@ public:
 
         sort(indices.begin(), indices.end(),
             [&score_lst](int i1, int i2) { return score_lst[i1] < score_lst[i2]; }); // Sort indices based on corresponding scores
-        cout << "indices size: " << score_lst.size() << endl;
-        for(int i=0;i<indices.size();i++){
-            cout << "i=" << i << " indices[i]=" << indices[i] << endl;
-        }
-        
-        //int actual_top_K = min(top_K, static_cast<int>(indices.size()));
+
         int actual_top_K = static_cast<int>(indices.size());
-        cout<<"actual_top_K= " << actual_top_K << endl;
-        
+
         vector<int> best_K_match_imgs_idx(indices.end() - actual_top_K, indices.end());
         reverse(best_K_match_imgs_idx.begin(), best_K_match_imgs_idx.end());
 
@@ -1066,19 +992,17 @@ public:
 
         vector<Mat> best_img;
         vector<string> best_img_path;
-        //CHANGDE CODE
+      
         //vector<pair<Mat, Mat>> best_correspondences;
-        vector<pair<string,int> >fileinlier1;
-        
+        vector<pair<string, int> >fileinlier1;
+
         fileinlier1 = spatial_verification(input_img, best_K_match_imgs, method);
-        //CHANGE CODE
-        //tie(best_img, best_img_path, best_H, best_correspondences) = spatial_verification(input_img, best_K_match_imgs, method);
-        
-        vector<pair<double,string>> Final_score_lst(target_img_lst.size());
-        for(int i=0;i<fileinlier1.size();i++){
-            cout << fileinlier1[i].first << " " << fileinlier1[i].second << " " << score_lst[i].first << " " << score_lst[i].second<< endl;
-            for(int j=0;j<fileinlier1.size();j++){
-                if(fileinlier1[i].first == score_lst[j].first){
+
+        vector<pair<double, string>> Final_score_lst(target_img_lst.size());
+        for (int i = 0; i < fileinlier1.size(); i++) {
+            cout << fileinlier1[i].first << " " << fileinlier1[i].second << " " << score_lst[i].first << " " << score_lst[i].second << endl;
+            for (int j = 0; j < fileinlier1.size(); j++) {
+                if (fileinlier1[i].first == score_lst[j].first) {
                     double new_score = score_lst[j].second * (double)fileinlier1[i].second;
                     Final_score_lst[i].first = new_score;
                     Final_score_lst[i].second = score_lst[j].first;
@@ -1086,32 +1010,29 @@ public:
                 }
             }
         }
-        sort(Final_score_lst.begin(),Final_score_lst.end());
-        reverse(Final_score_lst.begin(),Final_score_lst.end());
+        sort(Final_score_lst.begin(), Final_score_lst.end());
+        reverse(Final_score_lst.begin(), Final_score_lst.end());
         cout << "Final score_lst size: " << Final_score_lst.size() << endl;
-        double final_average_score=0;
-        for(int i=0; i<Final_score_lst.size();i++){
-            cout << "i=" << i << " Final_score_lst[i] file=" << Final_score_lst[i].second<< " Final_score_lst[i]=" << Final_score_lst[i].first << endl;
+        double final_average_score = 0;
+        for (int i = 0; i < Final_score_lst.size(); i++) {
+            cout << "i=" << i << " Final_score_lst[i] file=" << Final_score_lst[i].second << " Final_score_lst[i]=" << Final_score_lst[i].first << endl;
             final_average_score = final_average_score + Final_score_lst[i].first;
         }
-        final_average_score = final_average_score/Final_score_lst.size();
+        final_average_score = final_average_score / Final_score_lst.size();
         cout << "Final Average Score: " << final_average_score << endl;
-        
-        cout << "best_img_path_q = " << Final_score_lst[0].second << endl;
-        
-        for(int i=0;i<top_K;i++){
+
+        for (int i = 0; i < top_K; i++) {
             Mat img_temp = imread(Final_score_lst[i].second);
             best_img_path.push_back(Final_score_lst[i].second);
         }
-        //fd.drawCircle(input_img, kpts);
-        //fd.drawCircle(best_img, best_H);
+        fd.drawCircle(input_img, kpts);
         //visualize_homography(input_img, best_img, best_H);
-        //CHANGE CODE
+       
         //visualize_homography(input_img, best_img, best_H, best_correspondences);
-        
+
         return make_tuple(best_img_path, best_K_match_imgs);
     }
-    
+
     //-----------------------------------------------function for Running K-meanns algorithm-----------------------------------------------------------------
     /** Method to run the K-means clustering algroithm
     * Preconditions: i) The branching factor and level are already defined
@@ -1125,13 +1046,9 @@ public:
         cout << "Total Leaf Nodes = " << n_leafs << endl;
         word_count = vector<int>(n_leafs, 0);  // Initialize all elements to zero
         try {
-//            for(int i=0;i<all_des.size();i++){
-//                cout<< "i=" <<i<<endl;
-//                cout<< all_des[i].first <<endl;
-//                cout<< all_des[i].second <<endl;
-//            }
             vocabulary_tree = hierarchical_KMeans(k, L, all_des);
-        } catch (const cv::Exception& e) {
+        }
+        catch (const cv::Exception& e) {
             cerr << "Caught OpenCV exception: " << e.what() << endl;
             cerr << "Error occurred at k = " << k << ", L = " << L << endl;
         }
@@ -1144,61 +1061,34 @@ public:
     * Postconditions: Tehe database is saved into a desginated file
     * Assumptions: None
     */
-    /*void save(const string& db_name) {
-        ofstream file(db_name, ios::binary);
+    void save(const string& db_name) {
+        FileStorage fs(db_name, FileStorage::WRITE);
+        fs << "data_path" << data_path;
+        fs << "word_count" << word_count;
+        fs << "word_idx_count" << word_idx_count;
+        // Uses ImagePathPair
+        fs << "all_des" << all_des;
+        // Vector objects
+        fs << "num_feature_per_image" << num_feature_per_image;
+        fs << "feature_start_idx" << feature_start_idx;
+        fs << "all_images" << all_images;
+        // Convert maps to vectors
+        // map<string, Mat> frames; 
+        vector<StringVectorPair> bowVec;
+        for (const auto& pair : BoW) {
+            bowVec.push_back(StringVectorPair(pair.first, pair.second));
+        }
+        fs << "BoW" << bowVec;
+        vector<StringVectorPair> imgHistVec;
+        for (const auto& pair : img_to_histogram) {
+            imgHistVec.push_back(StringVectorPair(pair.first, pair.second));
+        }
+        fs << "img_to_histogram" << imgHistVec;
+        // Uses VocabNode
+        fs << "Vocab_Tree" << *vocabulary_tree;
+        fs.release();
+    }
 
-        file.write((char*)&data_path, sizeof(data_path));
-        file.write((char*)&num_imgs, sizeof(num_imgs));
-        file.write((char*)&word_to_img, sizeof(word_to_img));
-        file.write((char*)&BoW, sizeof(BoW));
-        file.write((char*)&word_count, sizeof(word_count));
-        file.write((char*)&img_to_histogram, sizeof(img_to_histogram));
-        file.write((char*)&all_des, sizeof(all_des));
-        file.write((char*)&all_images, sizeof(all_images));
-        file.write((char*)&num_feature_per_image, sizeof(num_feature_per_image));
-        file.write((char*)&feature_start_idx, sizeof(feature_start_idx));
-        file.write((char*)&word_idx_count, sizeof(word_idx_count));
-        file.write((char*)&vocabulary_tree, sizeof(vocabulary_tree));
-
-        file.close();
-        
-        
-//         FileStorage fs(db_name, FileStorage::WRITE);
-//                 fs << "Vocab Tree" << vocabulary_tree;
-//                 fs.release();
-//
-    }*/
-    
-    //CHANGE CODE
-    
-     void save(const string& db_name) {
-             FileStorage fs(db_name, FileStorage::WRITE);
-             fs << "data_path" << data_path;
-             fs << "word_count" << word_count;
-             fs << "word_idx_count" << word_idx_count;
-             // Uses ImagePathPair
-             fs << "all_des" << all_des;
-             // Vector objects
-             fs << "num_feature_per_image" << num_feature_per_image;
-             fs << "feature_start_idx" << feature_start_idx;
-             fs << "all_images" << all_images;
-             // Convert maps to vectors
-             // map<string, Mat> frames; // Don't forget video frames
-             vector<StringVectorPair> bowVec;
-             for (const auto& pair : BoW) {
-                 bowVec.push_back(StringVectorPair(pair.first, pair.second));
-             }
-             fs << "BoW" << bowVec;
-             vector<StringVectorPair> imgHistVec;
-             for (const auto& pair : img_to_histogram) {
-                 imgHistVec.push_back(StringVectorPair(pair.first, pair.second));
-             }
-             fs << "img_to_histogram" << imgHistVec;
-             // Uses VocabNode
-             fs << "Vocab_Tree" << *vocabulary_tree;
-             fs.release();
-         }
-     
 
     //--------------------------------------------------------------Loading the Database---------------------------------------------------------------------
     /** Method to load the vocabulary tree from the saved file
@@ -1207,78 +1097,38 @@ public:
      * Posconditions: The file is closed after reading
      * Assumptions: None
      */
-    /*void load(const string& db_name) {
-        ifstream file(db_name, ios::binary);
+    void load(const string& db_name) {
+        FileStorage fs(db_name, FileStorage::READ);
+        fs["data_path"] >> data_path;
+        fs["word_count"] >> word_count;
 
-        file.read((char*)&data_path, sizeof(data_path));
-        file.read((char*)&num_imgs, sizeof(num_imgs));
-        file.read((char*)&word_to_img, sizeof(word_to_img));
-        file.read((char*)&BoW, sizeof(BoW));
-        file.read((char*)&word_count, sizeof(word_count));
-        file.read((char*)&img_to_histogram, sizeof(img_to_histogram));
-        file.read((char*)&all_des, sizeof(all_des));
-        file.read((char*)&all_images, sizeof(all_images));
-        file.read((char*)&num_feature_per_image, sizeof(num_feature_per_image));
-        file.read((char*)&feature_start_idx, sizeof(feature_start_idx));
-        file.read((char*)&word_idx_count, sizeof(word_idx_count));
-        file.read((char*)&vocabulary_tree, sizeof(vocabulary_tree));
+        fs["word_idx_count"] >> word_idx_count;
+        // Uses ImagePathPair
+        fs["all_des"] >> all_des;
+        // For vector objects
+        fs["num_feature_per_image"] >> num_feature_per_image;
+        fs["feature_start_idx"] >> feature_start_idx;
+        fs["all_images"] >> all_images;
+        // Convert vector back to map
+        // map<string, Mat> frames; 
+        vector<StringVectorPair> bowVec;
+        fs["BoW"] >> bowVec;
+        BoW.clear();
+        for (const auto& pair : bowVec) {
+            BoW[pair.str] = pair.vec;
+        }
+        vector<StringVectorPair> imgHistVec;
+        fs["img_to_histogram"] >> imgHistVec;
+        img_to_histogram.clear();
+        for (const auto& pair : imgHistVec) {
+            img_to_histogram[pair.str] = pair.vec;
+        }
+        // For user-defined types
+        fs["Vocab_Tree"] >> *vocabulary_tree;
+        fs.release();
+    }
 
-        file.close();
-        
-//         FileStorage fs(db_name, FileStorage::READ);
-//                 FileNode fn = fs["Vocab Tree"];
-//                 fn >> vocabulary_tree;
-//                 fs.release();
-         
-    }*/
-    //CHANGE CODE
-    
-     void load(const string& db_name) {
-             FileStorage fs(db_name, FileStorage::READ);
-             fs["data_path"] >> data_path;
-             fs["word_count"] >> word_count;
-         
-             fs["word_idx_count"] >> word_idx_count;
-             // Uses ImagePathPair
-             fs["all_des"] >> all_des;
-             // For vector objects
-             fs["num_feature_per_image"] >> num_feature_per_image;
-             fs["feature_start_idx"] >> feature_start_idx;
-             fs["all_images"] >> all_images;
-             // Convert vector back to map
-             // map<string, Mat> frames; // Don't forget video frames
-             vector<StringVectorPair> bowVec;
-             fs["BoW"] >> bowVec;
-         /*for(int i=0;i<bowVec.size();i++){
-             cout << "bowVec" << bowVec[i].str << endl;
-             for(int j =0;j< bowVec[i].vec.size();j++){
-                 cout << "bowVec vector" << bowVec[i].vec[j] << endl;
-             }
-         }*/
-             BoW.clear();
-             for (const auto& pair : bowVec) {
-                 BoW[pair.str] = pair.vec;
-             }
-         /*for (auto i : BoW){
-             cout << "BoW" << i.first << endl;
-             for(auto j : i.second){
-                 cout << "BoW vector " << j << endl;
-             }
-         }*/
-         
-             vector<StringVectorPair> imgHistVec;
-             fs["img_to_histogram"] >> imgHistVec;
-             img_to_histogram.clear();
-             for (const auto& pair : imgHistVec) {
-                 img_to_histogram[pair.str] = pair.vec;
-             }
-             // For user-defined types
-             fs["Vocab_Tree"] >> *vocabulary_tree;
-         cout << "vocabulary_tree=" << vocabulary_tree->children.size() << endl;
-             fs.release();
-         }
-     
-    
+
     //--------------------------------------------------------------Building the Database--------------------------------------------------------------------
     /** Method to build the database using the specified branching factor, level and feature detector
      * Preconditions: i) The input load_path holds the database images
@@ -1295,36 +1145,23 @@ public:
 
         try {
             run_KMeans(k, L);
-        } catch (const cv::Exception& e) {
+        }
+        catch (const cv::Exception& e) {
             cerr << "Caught OpenCV exception: " << e.what() << endl;
             cerr << "Error occurred at k = " << k << ", L = " << L << endl;
         }
 
         cout << "Building Histogram for each images\n";
         build_histogram(vocabulary_tree);
-        
-        cout << "Vocab_tree = " << endl;
-       // print_tree(vocabulary_tree);
+
+      //cout << "Vocab_tree = " << endl;
+      // print_tree(vocabulary_tree);
 
         cout << "Building BoW for each images\n";
         build_BoW();
     }
 
 };
-
-//void mserExtractor (const Mat& image){
-//    Ptr<MSER> ms = MSER::create();
-//    vector<vector<Point> > regions;
-//    vector<cv::Rect> mser_bbox;
-//    ms->detectRegions(image, regions, mser_bbox);
-//
-//    for (int i = 0; i < regions.size(); i++){
-//        rectangle(image, mser_bbox[i], CV_RGB(0, 255, 0));
-//    }
-//
-//    imshow("mser", image);
-//    waitKey(0);
-//}
 
 //----------------------------------------------------------Driver Code - main Class-------------------------------------------------------------------------
 /** Driver method to read the images, build the vocabulary tree and display the similar images
@@ -1339,7 +1176,7 @@ public:
 int main(int argc, char* argv[]) {
     //Define the query image path and Image Dataset path
     string test_path = "./data/query";
-    string cover_path = "./data/DVD_DB_50";
+    string cover_path = "./data/DVDCovers";
 
     string fdname;
     int fdnumber;
@@ -1349,99 +1186,99 @@ int main(int argc, char* argv[]) {
     cout << "3 - BRISK" << endl;
     cout << "4 - AKAZE" << endl;
     cin >> fdnumber;
-    if(fdnumber == 1){
+    if (fdnumber == 1) {
         fdname = "SIFT";
     }
-    else if(fdnumber == 2){
+    else if (fdnumber == 2) {
         fdname = "ORB";
     }
-    else if(fdnumber == 3){
+    else if (fdnumber == 3) {
         fdname = "BRISK";
     }
-    else if(fdnumber == 4){
+    else if (fdnumber == 4) {
         fdname = "AKAZE";
     }
-    else{
+    else {
         cout << "Enter Valid Number for the feature detector!" << endl;
     }
-    
+
     // The counter for the number of folders
     int folder_count = 0;
-    
+
     // Create a recursive directory iterator
-    std::filesystem::recursive_directory_iterator dir_iter(cover_path);
-    
+    recursive_directory_iterator dir_iter(cover_path);
+
     // Loop over the directory entries
-        for (const auto& entry : dir_iter)
+    for (const auto& entry : dir_iter)
+    {
+        // Check if the entry is a directory
+        if (is_directory(entry))
         {
-            // Check if the entry is a directory
-            if (is_directory(entry))
-            {
-                // Increment the folder count
-                folder_count++;
-            }
+            // Increment the folder count
+            folder_count++;
         }
+    }
 
     // Print the number of folders
     cout << "There are " << folder_count << " folders in " << cover_path << endl;
-    
+
     string img_path = test_path + "/query_01.jpg";
-    
+
     Mat test = imread(img_path);
     vector<string> best_img_path;
     vector<cv::String> best_K;
-    
+
     //if(folder_count == 0){
         // Initial and build the database
-        Database db;
-        /*
-        // Build database
-        cout << "Building the database...\n";
-        std::chrono::time_point<std::chrono::high_resolution_clock> startdbbuild, enddbbuild;
-        startdbbuild = std::chrono::high_resolution_clock::now();
-        db.buildDatabase(cover_path, 3, 5, fdname);
-        enddbbuild = std::chrono::high_resolution_clock::now();
-        std::chrono::duration< double > Time_for_db_build = enddbbuild - startdbbuild;
-        cout << "Database Built\n";
-        cout << "Time taken to build the database: " << Time_for_db_build.count() << " sec" << endl;
-        
-        // Save the database
-        cout << "Saving the database...\n";
-        std::chrono::time_point<std::chrono::high_resolution_clock> startdbsave, enddbsave;
-        startdbsave = std::chrono::high_resolution_clock::now();
-        db.save("DVD_DB_50.txt");
-        enddbsave = std::chrono::high_resolution_clock::now();
-        std::chrono::duration< double > Time_for_db_save = enddbsave - startdbsave;
-        cout << "Database saved\n";
-        cout << "Time taken to save the database: " << Time_for_db_save.count() << " sec" << endl;
-        
-        //Uncomment the load function call when you want to load an already existing database
-        */
-         // Load the database
-         cout << "Loading the database...\n";
-         std::chrono::time_point<std::chrono::high_resolution_clock> startdbload, enddbload;
-         startdbload = std::chrono::high_resolution_clock::now();
-         db.load("DVD_DB_50.txt");
-         enddbload = std::chrono::high_resolution_clock::now();
-         std::chrono::duration< double > Time_for_db_load = enddbload - startdbload;
-         cout << "Database loaded\n";
-         cout << "Time taken to load the database: " << Time_for_db_load.count() << " sec" << endl;
-         
-        
-        // Query an image
-        cout << "Querying the image...\n";
-        std::chrono::time_point<std::chrono::high_resolution_clock> startquery, endquery;
-        startquery = std::chrono::high_resolution_clock::now();
-        tie(best_img_path, best_K) = db.query(test, 3, fdname);
-        endquery = std::chrono::high_resolution_clock::now();
-        std::chrono::duration< double > Time_for_querying = endquery - startquery;
-        cout << "Querying the image done!\n";
-        cout << "Time taken for querying: " << Time_for_querying.count() << " sec" << endl;
-        
-        cout << "best_img_path = " << best_img_path[0] << endl;
-        for(int i=0;i<best_img_path.size();i++){
-            cout << "i=" << i << "best_img_path = " << best_img_path[i] << endl;
-        }
+    Database db;
+    
+    // Build database
+    cout << "Building the database...\n";
+    std::chrono::time_point<std::chrono::high_resolution_clock> startdbbuild, enddbbuild;
+    startdbbuild = std::chrono::high_resolution_clock::now();
+    db.buildDatabase(cover_path, 3, 5, fdname);
+    enddbbuild = std::chrono::high_resolution_clock::now();
+    std::chrono::duration< double > Time_for_db_build = enddbbuild - startdbbuild;
+    cout << "Database Built\n";
+    cout << "Time taken to build the database: " << Time_for_db_build.count() << " sec" << endl;
+
+    // Save the database
+    cout << "Saving the database...\n";
+    std::chrono::time_point<std::chrono::high_resolution_clock> startdbsave, enddbsave;
+    startdbsave = std::chrono::high_resolution_clock::now();
+    db.save("DVD_DB_50.txt");
+    enddbsave = std::chrono::high_resolution_clock::now();
+    std::chrono::duration< double > Time_for_db_save = enddbsave - startdbsave;
+    cout << "Database saved\n";
+    cout << "Time taken to save the database: " << Time_for_db_save.count() << " sec" << endl;
+    
+    //Uncomment the load function call when you want to load an already existing database and comment the build and save segments
+    /*
+    // Load the database
+    cout << "Loading the database...\n";
+    std::chrono::time_point<std::chrono::high_resolution_clock> startdbload, enddbload;
+    startdbload = std::chrono::high_resolution_clock::now();
+    db.load("DVD_DB_50.txt");
+    enddbload = std::chrono::high_resolution_clock::now();
+    std::chrono::duration< double > Time_for_db_load = enddbload - startdbload;
+    cout << "Database loaded\n";
+    cout << "Time taken to load the database: " << Time_for_db_load.count() << " sec" << endl;
+    */
+
+    // Query an image
+    cout << "Querying the image...\n";
+    std::chrono::time_point<std::chrono::high_resolution_clock> startquery, endquery;
+    startquery = std::chrono::high_resolution_clock::now();
+    tie(best_img_path, best_K) = db.query(test, 3, fdname);
+    endquery = std::chrono::high_resolution_clock::now();
+    std::chrono::duration< double > Time_for_querying = endquery - startquery;
+    cout << "Querying the image done!\n";
+    cout << "Time taken for querying: " << Time_for_querying.count() << " sec" << endl;
+
+    cout << "best_img_path = " << best_img_path[0] << endl;
+    for (int i = 0; i < best_img_path.size(); i++) {
+        cout << "i=" << i << "best_img_path = " << best_img_path[i] << endl;
+    }
     //}
     /*
     else{
@@ -1451,7 +1288,7 @@ int main(int argc, char* argv[]) {
             cout << "\nFolder path=" << folder_cover_path << endl;
             // Initial and build the database
             Database db;
-            
+
             // Build database
             cout << "Building the database...\n";
             std::chrono::time_point<std::chrono::high_resolution_clock> startdbbuild, enddbbuild;
@@ -1461,7 +1298,7 @@ int main(int argc, char* argv[]) {
             std::chrono::duration< double > Time_for_db_build = enddbbuild - startdbbuild;
             cout << "Database Built\n";
             cout << "Time taken to build the database: " << Time_for_db_build.count() << " sec" << endl;
-            
+
             // Save the database
             cout << "Saving the database...\n";
             std::chrono::time_point<std::chrono::high_resolution_clock> startdbsave, enddbsave;
@@ -1471,7 +1308,7 @@ int main(int argc, char* argv[]) {
             std::chrono::duration< double > Time_for_db_save = enddbsave - startdbsave;
             cout << "Database saved\n";
             cout << "Time taken to save the database: " << Time_for_db_save.count() << " sec" << endl;
-            
+
             //Uncomment the load function call when you want to load an already existing database
             /*
              // Load the database
@@ -1484,10 +1321,10 @@ int main(int argc, char* argv[]) {
              cout << "Database loaded\n";
              cout << "Time taken to load the database: " << Time_for_db_load.count() << " sec" << endl;
              *
-            
+
             // Query an image
             cout << "Querying the image...\n";
-            
+
             std::chrono::time_point<std::chrono::high_resolution_clock> startquery, endquery;
             startquery = std::chrono::high_resolution_clock::now();
             tie(best_img_path, best_K) = db.query(test, 5, fdname);
@@ -1495,29 +1332,27 @@ int main(int argc, char* argv[]) {
             std::chrono::duration< double > Time_for_querying = endquery - startquery;
             cout << "Querying the image done!\n";
             cout << "Time taken for querying: " << Time_for_querying.count() << " sec" << endl;
-            
+
             cout << "best_img_path = " << best_img_path[0] << endl;
             for(int i=0;i<best_img_path.size();i++){
                 cout << "i=" << i << "best_img_path = " << best_img_path[i] << endl;
             }
         }
     }*/
-    //mserExtractor(test);
-    
-    
+
     // Display the test image
     namedWindow("Test Image", WINDOW_NORMAL);
     imshow("Test Image", test);
-    
 
-        for(int i=0;i<best_img_path.size();i++){
-            Mat best_img = imread(best_img_path[i]);
-            cout << "i=" << i << endl;
-            // Display the best matching images
-            namedWindow("Best Match", WINDOW_NORMAL);
-            imshow("Best Match", best_img);
-        
-            waitKey(0);
-        }
+
+    for (int i = 0; i < best_img_path.size(); i++) {
+        Mat best_img = imread(best_img_path[i]);
+        cout << "i=" << i << endl;
+        // Display the best matching images
+        namedWindow("Best Match", WINDOW_NORMAL);
+        imshow("Best Match", best_img);
+
+        waitKey(0);
+    }
     return 0;
 }
