@@ -126,33 +126,50 @@ tuple<int, Mat> RANSAC_optimal(vector<pair<Mat, Mat>> correspondences, int num_r
 }
 
 //---------------------------------------------------------Visualize the Homography -------------------------------------------------------------------------
-/** Method to visualize optimal homograpgy between the test image and query image (Work in Progress)
-* Precondtions: H is a homography matrix between the input images
-* Postconditions: i) The homography is visualized on the query image
-                  ii) The overdrawn query image is saved into the directory
-* Assumptions: The best match for the query image is already found
-* @return: the visualized matrix result
-*/
-Mat visualize_homography(Mat img1, Mat img2, Mat H) {
-    int h, w;
-    h = img1.rows;
-    w = img1.cols;
+/**
+ * Method to visualize correspondences between the input image and the best match image
+ * Preconditions: 
+ *   i) input_img and best_img are valid Mat objects representing images
+ *   ii) method is a string representing the feature detection method to be used ("SIFT", "ORB", etc.)
+ * Postconditions: 
+ *   i) The correspondences between input_img and best_img are visualized on a combined image
+ *   ii) The visualized image is displayed in a window
+ * Assumptions: The best match for the input image is already found
+ * @param input_img: the input image as a Mat object
+ * @param best_img: the best match image as a Mat object
+ * @param method: the feature detection method as a string
+ * @return: the visualized matrix result
+ */
 
-    // define the reference points
-    vector<Point2f> pts;
-    pts.push_back(Point2f(0, 0));
-    pts.push_back(Point2f(0, h - 1));
-    pts.push_back(Point2f(w - 1, h - 1));
-    pts.push_back(Point2f(w - 1, 0));
+void visualize_homography(Mat img1, Mat img2, string method) {
+    FeatureDetector1 fd;
 
-    // transfer the points with affine transformation to get the new point on img2
-    vector<Point2f> dst;
-    perspectiveTransform(pts, dst, H);
+    // Detect and match features between img1 and img2
+    auto correspondences = fd.detectAndMatch(img1, img2, method);
 
-    Mat result;
-    img2.copyTo(result);
-    polylines(result, dst, true, Scalar(0, 0, 255), 2, LINE_AA);
-    imwrite("result.png", result);
+    // Compute the size of the output image
+    int h = max(img1.rows, img2.rows);
+    int w = img1.cols + img2.cols;
 
-    return result;
+    // Create a new image of the right size
+    Mat result(h, w, img1.type());
+
+    // Copy img1 and img2 into result
+    Mat roi1(result, Rect(0, 0, img1.cols, img1.rows));
+    img1.copyTo(roi1);
+    Mat roi2(result, Rect(img1.cols, 0, img2.cols, img2.rows));
+    img2.copyTo(roi2);
+
+    // Draw lines between matching features
+    for (const auto& correspondence : correspondences) {
+        Point2f pt1(correspondence.first.at<double>(0), correspondence.first.at<double>(1));
+        Point2f pt2(correspondence.second.at<double>(0), correspondence.second.at<double>(1));
+        pt2.x += img1.cols;  // Adjust x-coordinate of pt2
+        line(result, pt1, pt2, Scalar(0, 255, 0));
+    }
+
+    // Display the result
+    namedWindow("Matches", WINDOW_NORMAL);
+    imshow("Matches", result);
+    waitKey();
 }

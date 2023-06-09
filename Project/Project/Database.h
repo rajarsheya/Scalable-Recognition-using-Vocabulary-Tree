@@ -423,7 +423,6 @@ public:
         transform(best_K_match_imgs_idx.begin(), best_K_match_imgs_idx.end(), best_K_match_imgs.begin(),
             [&target_img_lst](int i) { return target_img_lst[i]; });
 
-        vector<Mat> best_img;
         vector<string> best_img_path;
 
         //vector<pair<Mat, Mat>> best_correspondences;
@@ -459,7 +458,11 @@ public:
             best_img_path.push_back(Final_score_lst[i].second);
         }
         fd.drawCircle(input_img, kpts);
-        //visualize_homography(input_img, best_img, best_H);
+        // Load best match image
+        Mat best_img = imread(best_img_path[0]);
+
+        // Uncomment the visualize_homography() call below to see the homography visualization-------------------------------
+        // visualize_homography(input_img, best_img, method);
 
         return make_tuple(best_img_path, best_K_match_imgs);
     }
