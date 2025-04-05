@@ -9,7 +9,9 @@ Citation: Nister, D., & Stewenius, H. (2006, June). Scalable recognition with a 
 The primary objective is to investigate the effectiveness and efficiency of this approach for visual recognition tasks. The project delves into the hierarchical structure of k-means clustering trees and evaluates their impact on recognition accuracy and computational efficiency. The project involves an in-depth analysis of the original work and subsequent literature, along with implementing a program design based on the proposed methodology. The design includes steps such as dataset installation, feature detection using the ORB detector, k-means clustering, max voting, cluster reassignment, and score calculations. To evaluate the performance of the approach, experiments are conducted using publicly available datasets, with plans to explore larger datasets such as COCO. The research also considers the exploration of alternative feature detectors aiming to reduce noise and achieve higher accuracy. The goals of this project contribute to greater understanding of k-means clustering trees of Bag of Words (Vocabulary Tree) in computer vision and provide insights into their practical implementation. By comparing the results with the original research paper and exploring different methodologies, the project seeks to highlight the strengths and weaknesses of this approach and inspire further advancements in the field.
 
 
-CSS 587 Advanced Topics in Computer Vision DEMO: https://www.youtube.com/watch?v=PwBysUeuK48
+CSS 587 Advanced Topics in Computer Vision DEMO: https://www.youtube.com/watch?v=PwBysUeuK48 (Josiah's Youtube Channel)
+CSS 587 Advanced Topics in Computer Vision DEMO: https://youtu.be/481aGdVzamY (Arsheya's Youtube Channel)
+Both DEMOs are the same!
 
 ## Team Information
 
