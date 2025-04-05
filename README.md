@@ -10,7 +10,9 @@ The primary objective is to investigate the effectiveness and efficiency of this
 
 
 CSS 587 Advanced Topics in Computer Vision DEMO: https://www.youtube.com/watch?v=PwBysUeuK48 (Josiah's Youtube Channel)
+
 CSS 587 Advanced Topics in Computer Vision DEMO: https://youtu.be/481aGdVzamY (Arsheya's Youtube Channel)
+
 Both DEMOs are the same!
 
 ## Team Information
